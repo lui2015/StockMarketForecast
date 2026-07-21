@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>股市预测 · 涨跌预测系统</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="app-bar">
+    <div class="brand">📈 股市预测</div>
+    <nav class="top-tabs">
+      <button data-page="home" class="active">首页</button>
+      <button data-page="stats">统计</button>
+      <button data-page="history">历史</button>
+    </nav>
+    <div class="app-bar-right">
+      <button id="openSubmit" class="primary sm">+ 提交预测</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <main id="view">
+      <!-- 首页 -->
+      <section class="page" id="page-home">
+        <div class="metrics">
+          <div class="card metric">
+            <div class="metric-label">本周预测成功率</div>
+            <div class="metric-val" id="weekAcc">--</div>
+            <div class="metric-sub" id="weekSub">--</div>
+          </div>
+          <div class="card metric">
+            <div class="metric-label">本月预测成功率</div>
+            <div class="metric-val" id="monthAcc">--</div>
+            <div class="metric-sub" id="monthSub">--</div>
+          </div>
+          <div class="card metric">
+            <div class="metric-label">累计预测成功率</div>
+            <div class="metric-val grad" id="cumAcc">--</div>
+            <div class="metric-sub" id="cumSub">--</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>今日预测结果</h3>
+          <div class="idx-grid" id="idxGrid"></div>
+          <div class="idx-detail" id="idxDetail" style="display:none"></div>
+        </div>
+
+        <div class="card">
+          <div class="cal-head">
+            <h3>预测日历</h3>
+            <div class="cal-nav">
+              <button id="calPrev">‹</button>
+              <span id="calTitle">--</span>
+              <button id="calNext">›</button>
+            </div>
+          </div>
+          <div class="seg cal-filter" id="calFilter">
+            <button data-m="A_INDEX" class="active">A股大盘</button>
+            <button data-m="HK_INDEX">港股大盘</button>
+            <button data-m="US_INDEX">美股大盘</button>
+            <select id="stockSel" class="stock-sel">
+              <option value="" disabled selected>个股</option>
+            </select>
+          </div>
+          <div class="cal-week">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-legend">
+            <span><i class="dot hit"></i>命中</span>
+            <span><i class="dot miss"></i>未中</span>
+            <span><i class="dot pending"></i>待校验</span>
+            <span><i class="dot none"></i>无预测</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 统计 -->
+      <section class="page hidden" id="page-stats">
+        <div class="card">
+          <div class="metric-label">累积准确率</div>
+          <div class="metric-val grad" id="statAcc">--</div>
+          <div class="metric-sub" id="statSub"></div>
+          <div class="streak" id="streak"></div>
+        </div>
+        <div class="card" id="byMarket"></div>
+        <div class="card">
+          <h3>近期命中趋势</h3>
+          <div id="trendChart" style="width:100%;height:260px;"></div>
+        </div>
+        <div class="card">
+          <h3>排行榜</h3>
+          <div id="leaderboard" class="hist-list"></div>
+        </div>
+      </section>
+
+      <!-- 历史 -->
+      <section class="page hidden" id="page-history">
+        <div class="card">
+          <div class="filters">
+            <select id="fMarket"><option value="">全部市场</option></select>
+            <select id="fStatus">
+              <option value="">全部状态</option>
+              <option value="PENDING">待校验</option>
+              <option value="VERIFIED">已校验</option>
+              <option value="ERROR">异常</option>
+            </select>
+          </div>
+          <div id="histList" class="hist-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 提交预测弹层 -->
+  <div id="submitModal" class="modal hidden">
+    <div class="modal-card wide">
+      <div class="modal-head"><h3>提交预测</h3><button class="x" id="closeSubmit">✕</button></div>
+      <div class="seg" id="marketSeg">
+        <button data-m="A_INDEX" class="active">A股大盘</button>
+        <button data-m="HK_INDEX">港股大盘</button>
+        <button data-m="US_INDEX">美股大盘</button>
+        <button data-m="A_STOCK">A股个股</button>
+        <button data-m="HK_STOCK">港股个股</button>
+      </div>
+      <div id="symbolBox" class="symbol-box"></div>
+      <div class="field">
+        <label>预测方向</label>
+        <div class="seg dir">
+          <button data-d="UP" class="up active">看涨 ↑</button>
+          <button data-d="DOWN" class="down">看跌 ↓</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>预测逻辑（上传 HTML 文件）</label>
+        <div id="reasonDrop" class="dropzone">
+          <input type="file" id="reasonFile" accept=".html,.htm,text/html" hidden />
+          <div class="dz-inner">
+            <div class="dz-icon">⬆</div>
+            <div class="dz-text">将 HTML 文件拖到此处，或 <span class="dz-link">点击选择</span></div>
+            <div class="dz-name" id="reasonFileName"></div>
+          </div>
+        </div>
+        <div class="meta" style="margin-top:6px">也可填写一句话说明（可选）</div>
+        <input type="text" id="reasonCaption" placeholder="一句话说明（可选）" style="margin-top:6px" />
+      </div>
+      <div id="submitMsg" class="msg"></div>
+      <button id="submitBtn" class="primary">提交预测</button>
+    </div>
+  </div>
+
+  <!-- 查看预测逻辑弹层 -->
+  <div id="reasonModal" class="modal hidden">
+    <div class="modal-card wide">
+      <div class="modal-head"><h3>预测逻辑</h3><button class="x" id="closeReason">✕</button></div>
+      <iframe id="reasonFrame" sandbox="allow-scripts" style="width:100%;height:62vh;border:0;background:#fff;border-radius:10px;"></iframe>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="app.js?v=20260721b"></script>
+</body>
+</html>

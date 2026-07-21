@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  forecast:
+    build: .
+    container_name: forecast
+    ports:
+      - "3030:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=3000
+      - QUOTE_MODE=mock          # 生产可改为 live（调用东方财富公开接口）
+      - VERIFY_HOUR=16
+      - VERIFY_MINUTE=30
+      - ADMIN_PASS=admin123
+      - SEED_AI_API_KEY=sk-ai-demo-0001
+    restart: unless-stopped

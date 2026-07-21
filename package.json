@@ -1,0 +1,20 @@
+{
+  "name": "stock-market-forecast",
+  "version": "1.0.0",
+  "description": "故事/股市预测系统：每日提交涨跌预测，次日自动校验并统计准确率，移动端优先，提供 AI 调用接口。",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "verify": "node verify-task.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2",
+    "multer": "^2.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
