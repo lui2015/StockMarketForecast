@@ -8,8 +8,15 @@ const { runVerify } = require('./src/verify');
 const app = express();
 app.use(express.json());
 
-// 静态前端
-app.use(express.static(path.join(__dirname, 'public')));
+// 静态前端（版本化资源带 ?v 查询串，可安全长期缓存；index.html 不缓存以便即时更新）
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1h',
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  },
+}));
 
 // 路由
 app.use('/api/predictions', require('./src/routes/predictions'));

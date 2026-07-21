@@ -27,6 +27,22 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+let _echartsLoading = null;
+// 懒加载 echarts：仅进入统计页时按需加载，避免首页被 1MB 脚本阻塞
+function loadEcharts() {
+  if (window.echarts) return Promise.resolve();
+  if (_echartsLoading) return _echartsLoading;
+  _echartsLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => { _echartsLoading = null; reject(new Error('echarts 加载失败')); };
+    document.head.appendChild(s);
+  });
+  return _echartsLoading;
+}
+
 async function init() {
   state.meta = (await api('api/admin/meta')).data;
   bindMarketSeg();
@@ -72,9 +88,14 @@ function renderSymbolBox() {
     });
   } else {
     const ph = m === 'A_STOCK' ? '输入代码，如 600519 或 sh600519' : '输入港股代码，如 00700';
-    box.innerHTML = `<input type="text" id="symInput" placeholder="${ph}" />`;
+    const nmPh = m === 'A_STOCK' ? '股票名称，如 贵州茅台' : '股票名称，如 腾讯控股';
+    box.innerHTML =
+      `<input type="text" id="symInput" placeholder="${ph}" />` +
+      `<input type="text" id="symNameInput" placeholder="${nmPh}" style="margin-top:8px" />`;
     state.symbol = null;
+    state.symbolName = '';
     $('#symInput').oninput = (e) => { state.symbol = e.target.value.trim(); };
+    $('#symNameInput').oninput = (e) => { state.symbolName = e.target.value.trim(); };
   }
 }
 
@@ -83,8 +104,10 @@ function openSubmit() {
   $('#submitModal').classList.remove('hidden');
   $('#submitMsg').textContent = ''; $('#submitMsg').className = 'msg';
   state.reasonFile = null;
+  state.symbolName = '';
   $('#reasonFile').value = '';
   $('#reasonFileName').textContent = '';
+  const nm = $('#symNameInput'); if (nm) nm.value = '';
   if (!state.symbol) renderSymbolBox();
 }
 $('#openSubmit').onclick = openSubmit;
@@ -120,13 +143,16 @@ $('#submitBtn').onclick = async () => {
   const msg = $('#submitMsg');
   msg.textContent = ''; msg.className = 'msg';
   let sym = state.symbol;
+  let symName = state.symbolName || '';
   if (state.market === 'A_STOCK' || state.market === 'HK_STOCK') {
     sym = $('#symInput') ? $('#symInput').value.trim() : '';
+    symName = $('#symNameInput') ? $('#symNameInput').value.trim() : '';
   }
   if (!sym) { msg.textContent = '请选择/输入标的'; msg.className = 'msg err'; return; }
   const fd = new FormData();
   fd.append('market', state.market);
   fd.append('symbol', sym);
+  if (symName) fd.append('symbol_name', symName);
   fd.append('direction', state.direction);
   fd.append('reason', $('#reasonCaption').value.trim());
   const file = state.reasonFile || $('#reasonFile').files[0];
@@ -139,6 +165,7 @@ $('#submitBtn').onclick = async () => {
   if (data.code !== 0) { msg.textContent = data.msg; msg.className = 'msg err'; return; }
   msg.textContent = '提交成功，次日自动校验'; msg.className = 'msg ok';
   state.reasonFile = null;
+  state.symbolName = '';
   $('#reasonCaption').value = ''; $('#reasonFile').value = ''; $('#reasonFileName').textContent = '';
   $('#submitModal').classList.add('hidden');
   await refreshHome(); await refreshStats();
@@ -341,7 +368,11 @@ async function refreshStats() {
 
 function renderTrend(trend) {
   const el = $('#trendChart');
-  if (!window.echarts || !el) return;
+  if (!el) return;
+  if (!window.echarts) { // 统计页首次打开时按需懒加载 echarts
+    loadEcharts().then(() => renderTrend(trend)).catch(() => { el.innerHTML = '<div class="meta">图表库加载失败（可能网络受限），请稍后重试</div>'; });
+    return;
+  }
   const chart = window.echarts.init(el);
   chart.setOption({
     grid: { left: 40, right: 16, top: 16, bottom: 28 },

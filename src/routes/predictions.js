@@ -42,6 +42,7 @@ router.post('/', (req, res, next) => {
   const target_date = body.target_date;
   const direction = body.direction;
   const caption = (body.reason || '').toString().slice(0, 500);
+  const symbolNameInput = (body.symbol_name || '').toString().trim();
 
   if (!MARKETS[market]) return res.status(400).json({ code: 400, msg: 'market 非法' });
   if (!['UP', 'DOWN'].includes(direction)) return res.status(400).json({ code: 400, msg: 'direction 必须为 UP 或 DOWN' });
@@ -60,7 +61,8 @@ router.post('/', (req, res, next) => {
 
   const nameMap = {};
   (PRESET_INDICES[market] || []).forEach((x) => { nameMap[x.symbol] = x.name; });
-  const symbolName = nameMap[sym] || sym;
+  // 个股优先使用用户提交的证券名称；预设大盘用映射；其余回退到代码
+  const symbolName = symbolNameInput || nameMap[sym] || sym;
 
   try {
     db.prepare(`INSERT INTO predictions (user_id, market, symbol, symbol_name, target_date, direction, reason)
