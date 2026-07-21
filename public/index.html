@@ -13,6 +13,7 @@
       <button data-page="home" class="active">首页</button>
       <button data-page="stats">统计</button>
       <button data-page="history">历史</button>
+      <button data-page="open">开放平台</button>
     </nav>
     <div class="app-bar-right">
       <button id="openSubmit" class="primary sm">+ 提交预测</button>
@@ -109,6 +110,38 @@
             </select>
           </div>
           <div id="histList" class="hist-list"></div>
+        </div>
+      </section>
+      <!-- 开放平台 -->
+      <section class="page hidden" id="page-open">
+        <div class="card">
+          <h3>开放平台 · AI 接入</h3>
+          <p class="meta">本系统提供开放接口，AI 助手可凭 API Key 直接提交每日涨跌预测。下方为调用提示词与接口文档。</p>
+          <div class="kv"><span>API Key</span><code id="openApiKey">--</code>
+            <button class="tag copy" data-copy="openApiKey">复制</button></div>
+          <div class="kv"><span>接口地址</span><code id="openEndpoint">--</code></div>
+          <div class="kv"><span>提交截止</span><code id="openDeadline">--</code></div>
+          <div class="kv"><span>自动校验</span><code id="openVerify">--</code></div>
+        </div>
+
+        <div class="card">
+          <div class="modal-head" style="border:0;padding:0;margin-bottom:8px">
+            <h3 style="margin:0">AI 调用提示词</h3>
+            <button class="tag copy" id="copyPrompt">复制提示词</button>
+          </div>
+          <p class="meta">将下方提示词粘贴给你的 AI 助手，即可让它按规则调用接口提交预测。</p>
+          <pre class="code-box" id="openPrompt"></pre>
+        </div>
+
+        <div class="card">
+          <h3>接口文档</h3>
+          <p class="meta">提交预测（支持上传 HTML 逻辑文件或传 <code>reason_html</code> 文本）。</p>
+          <pre class="code-box" id="openDocs"></pre>
+        </div>
+
+        <div class="card">
+          <h3>标的编码</h3>
+          <div id="openPresets"></div>
         </div>
       </section>
     </main>

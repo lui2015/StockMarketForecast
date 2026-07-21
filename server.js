@@ -15,6 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/predictions', require('./src/routes/predictions'));
 app.use('/api/stats', require('./src/routes/stats'));
 app.use('/api/admin', require('./src/routes/admin'));
+app.use('/api/open', require('./src/routes/open'));
 
 // 健康检查
 app.get('/api/health', (req, res) => res.json({ code: 0, msg: 'ok', mode: config.quoteMode }));

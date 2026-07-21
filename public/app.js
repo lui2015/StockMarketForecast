@@ -396,6 +396,74 @@ function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<'
 $('#fMarket').onchange = refreshHistory;
 $('#fStatus').onchange = refreshHistory;
 
+/* ---------- 开放平台 ---------- */
+let openLoaded = false;
+async function refreshOpen() {
+  if (openLoaded) return;
+  const r = await api('api/open/info');
+  if (r.code !== 0) return;
+  const d = r.data;
+  $('#openApiKey').textContent = d.apiKey;
+  $('#openApiKey').dataset.copyval = d.apiKey;
+  $('#openEndpoint').textContent = d.method + ' ' + d.endpoint;
+  $('#openDeadline').textContent = d.submitDeadline + '（收盘前）';
+  $('#openVerify').textContent = d.verifyTime + ' 自动校验';
+  $('#openPrompt').textContent = d.prompt;
+
+  const docs =
+`# 1. 提交预测（JSON）
+POST ${d.endpoint}
+Authorization: Bearer ${d.apiKey}
+Content-Type: application/json
+
+{
+  "market": "A_INDEX | HK_INDEX | US_INDEX | A_STOCK | HK_STOCK",
+  "symbol": "标的代码",
+  "direction": "UP | DOWN",
+  "reason_html": "<!-- 预测逻辑 HTML，可选 -->",
+  "target_date": "目标交易日 YYYY-MM-DD，留空=下一交易日"
+}
+
+# 2. 提交预测（上传 HTML 逻辑文件）
+curl -X POST ${'http://localhost:' + location.port}${d.endpoint} \\
+  -H "Authorization: Bearer ${d.apiKey}" \\
+  -F "market=A_INDEX" -F "symbol=sh000001" \\
+  -F "direction=UP" -F "reason_file=@logic.html"
+
+# 说明
+- 同一用户+标的+目标日只能有一条预测，重复提交会覆盖。
+- 每日 ${d.verifyTime} 自动校验上一交易日结果并统计命中率。`;
+  $('#openDocs').textContent = docs;
+
+  const labels = d.markets;
+  const html = Object.entries(d.presets).map(([m, list]) => `
+    <div class="op-group">
+      <h4>${labels[m] || m}</h4>
+      ${list.map((x) => `<div class="op-item"><span>${x.name}</span><code>${x.symbol}</code></div>`).join('')}
+    </div>`).join('');
+  $('#openPresets').innerHTML = html || '<div class="meta">暂无预置标的</div>';
+  openLoaded = true;
+}
+
+// 复制到剪贴板（data-copy 指向元素 id，优先取 dataset.copyval）
+$$('[data-copy]').forEach((btn) => {
+  btn.onclick = () => {
+    const el = $('#' + btn.dataset.copy);
+    const text = el.dataset.copyval || el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const old = btn.textContent; btn.textContent = '已复制';
+      setTimeout(() => (btn.textContent = old), 1200);
+    }).catch(() => alert('复制失败，请手动选择'));
+  };
+});
+$('#copyPrompt').onclick = () => {
+  const text = $('#openPrompt').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const old = $('#copyPrompt').textContent; $('#copyPrompt').textContent = '已复制';
+    setTimeout(() => ($('#copyPrompt').textContent = old), 1200);
+  }).catch(() => alert('复制失败'));
+};
+
 /* ---------- 查看预测逻辑 HTML（沙箱渲染，防 XSS） ---------- */
 const REASON_CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob: *; font-src * data:; connect-src 'none'">`;
 async function viewReason(id) {
@@ -421,6 +489,7 @@ $$('.top-tabs button').forEach((b) => {
     $('#page-' + b.dataset.page).classList.remove('hidden');
     if (b.dataset.page === 'stats') refreshStats();
     if (b.dataset.page === 'history') refreshHistory();
+    if (b.dataset.page === 'open') refreshOpen();
   };
 });
 
