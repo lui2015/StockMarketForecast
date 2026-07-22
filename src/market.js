@@ -29,6 +29,18 @@ const PRESET_INDICES = {
   ],
 };
 
+// 预置指数 symbol -> 中文名 的大小写不敏感映射
+const _symbolNameMap = {};
+Object.keys(PRESET_INDICES).forEach((m) => {
+  (PRESET_INDICES[m] || []).forEach((x) => { _symbolNameMap[x.symbol.toLowerCase()] = x.name; });
+});
+// 解析标的显示名称：命中预置则优先用中文名，否则回退 fallback（通常为原始代码）
+function resolveSymbolName(symbol, fallback) {
+  if (!symbol) return fallback || symbol;
+  const s = String(symbol).toLowerCase();
+  return _symbolNameMap[s] || fallback || symbol;
+}
+
 // 证券代码结构校验
 function normalizeSymbol(market, raw) {
   const s = String(raw || '').trim().toLowerCase();
@@ -96,6 +108,29 @@ async function fetchLive(symbol) {
   }
 }
 
+// 从行情源获取证券中文名称（best-effort），失败返回 null
+async function fetchSecurityName(symbol) {
+  const secid = toSecid(symbol);
+  if (!secid) return null;
+  const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secid)}&fields=f57,f58&invt=2&_=${Date.now()}`;
+  // 行情接口偶发返回空，做少量重试
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 6000);
+      const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
+      clearTimeout(timer);
+      if (res.ok) {
+        const json = await res.json();
+        const name = json && json.data && json.data.f58;
+        if (name && name !== '-') return String(name).trim();
+      }
+    } catch (e) { /* 重试 */ }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+  }
+  return null;
+}
+
 // 获取某标的在指定交易日的实际涨跌幅；返回 { changePct, close, prevClose } 或 null
 async function getQuote(symbol, dateStr) {
   if (config.quoteMode === 'mock') {
@@ -121,6 +156,8 @@ module.exports = {
   INDEX_MARKETS,
   STOCK_MARKETS,
   normalizeSymbol,
+  resolveSymbolName,
+  fetchSecurityName,
   getQuote,
   toSecid,
   expandMarketFilter,

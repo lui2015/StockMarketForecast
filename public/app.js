@@ -77,14 +77,16 @@ function renderSymbolBox() {
   if (m === 'A_INDEX' || m === 'HK_INDEX') {
     const list = state.meta.presets[m] || [];
     box.innerHTML = '<div class="chips">' +
-      list.map((x, i) => `<span class="chip ${i === 0 ? 'active' : ''}" data-sym="${x.symbol}">${x.name}</span>`).join('') +
+      list.map((x, i) => `<span class="chip ${i === 0 ? 'active' : ''}" data-sym="${x.symbol}" data-name="${x.name}">${x.name}</span>`).join('') +
       '</div>';
     state.symbol = list[0] ? list[0].symbol : null;
+    state.symbolName = list[0] ? list[0].name : '';
     $$('#symbolBox .chip').forEach((c) => {
       c.onclick = () => {
         $$('#symbolBox .chip').forEach((x) => x.classList.remove('active'));
         c.classList.add('active');
         state.symbol = c.dataset.sym;
+        state.symbolName = c.dataset.name;
       };
     });
   } else {
@@ -162,6 +164,10 @@ $('#submitBtn').onclick = async () => {
   if (state.market === 'A_STOCK' || state.market === 'HK_STOCK') {
     sym = $('#symInput') ? $('#symInput').value.trim() : '';
     symName = $('#symNameInput') ? $('#symNameInput').value.trim() : '';
+  } else if (state.market === 'A_INDEX' || state.market === 'HK_INDEX' || state.market === 'US_INDEX') {
+    // 大盘指数：名称取自预置映射，不依赖可能为空 / 被误改的 state.symbolName
+    const preset = (state.meta.presets[state.market] || []).find((x) => x.symbol === sym);
+    symName = preset ? preset.name : (state.symbolName || '');
   }
   if (!sym) { msg.textContent = '请选择/输入标的'; msg.className = 'msg err'; return; }
   const fd = new FormData();

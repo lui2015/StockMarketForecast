@@ -6,7 +6,7 @@ const path = require('path');
 const multer = require('multer');
 const db = require('../db');
 const config = require('../config');
-const { MARKETS, PRESET_INDICES, normalizeSymbol, expandMarketFilter } = require('../market');
+const { MARKETS, STOCK_MARKETS, normalizeSymbol, resolveSymbolName, fetchSecurityName, expandMarketFilter } = require('../market');
 const { resolveUser } = require('../auth');
 const { manualVerify } = require('../verify');
 const router = express.Router();
@@ -36,7 +36,7 @@ router.post('/', (req, res, next) => {
     if (err) return res.status(400).json({ code: 400, msg: 'HTML 文件上传失败：' + err.message });
     next();
   });
-}, resolveUser, (req, res) => {
+}, resolveUser, async (req, res) => {
   const body = req.body || {};
   const market = body.market;
   const symbol = body.symbol;
@@ -62,10 +62,20 @@ router.post('/', (req, res, next) => {
     }
   }
 
-  const nameMap = {};
-  (PRESET_INDICES[market] || []).forEach((x) => { nameMap[x.symbol] = x.name; });
   // 个股优先使用用户提交的证券名称；预设大盘用映射；其余回退到代码
-  const symbolName = symbolNameInput || nameMap[sym] || sym;
+  // 用户未填真实名称（输入与代码相同）时忽略，统一解析中文名，避免存成英文代码
+  const effectiveInput = (symbolNameInput && symbolNameInput.toLowerCase() !== sym) ? symbolNameInput : '';
+  // 预置指数命中则用中文名（resolveSymbolName 未命中会回退成代码，故与代码比较判断是否真正命中）
+  const preset = resolveSymbolName(sym, '');
+  let symbolName = effectiveInput || (preset && preset.toLowerCase() !== sym ? preset : '');
+  // 个股未命中预置映射且用户未填名称时，尝试从行情源拉取证券中文名（best-effort）
+  if (!symbolName && STOCK_MARKETS.includes(market)) {
+    try {
+      const fetched = await fetchSecurityName(sym);
+      if (fetched) symbolName = fetched;
+    } catch (e) { /* 忽略，回退到代码 */ }
+  }
+  if (!symbolName) symbolName = sym;
 
   try {
     db.prepare(`INSERT INTO predictions (user_id, market, symbol, symbol_name, target_date, direction, reason, submit_source)
