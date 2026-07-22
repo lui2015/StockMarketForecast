@@ -305,11 +305,11 @@ function renderCalendar(data, today, marketHistory) {
   for (const d of workdays) {
     const ds = `${month}-${pad(d)}`;
     const info = data.days[ds];
-    const md = mh[ds]; // 'up' | 'down' 大盘实际涨跌
+    const md = mh[ds]; // { dir:'up'|'down', pct:Number } 大盘实际涨跌
     let cls = 'cal-cell', stat = '', face = '', numCls = 'dnum', dir = '';
     if (ds === today) cls += ' today';
-    if (md === 'up') cls += ' mkt-up';
-    else if (md === 'down') cls += ' mkt-down';
+    if (md && md.dir === 'up') cls += ' mkt-up';
+    else if (md && md.dir === 'down') cls += ' mkt-down';
     if (info && info.total > 0) {
       if (info.verified > 0) {
         if (info.hits === info.verified) { cls += ' hit'; stat = '命中'; face = '😄'; }
@@ -322,7 +322,13 @@ function renderCalendar(data, today, marketHistory) {
       if (ld === 'UP') dir = '<span class="up">看涨</span>';
       else if (ld === 'DOWN') dir = '<span class="down">看跌</span>';
     }
-    html += `<div class="${cls}" data-date="${ds}"><span class="${numCls}">${d}</span><span class="dface">${face}</span>${dir ? `<span class="ddir">${dir}</span>` : ''}<span class="dstat">${stat}</span></div>`;
+    const chgTxt = md ? (md.pct > 0 ? '+' : '') + md.pct.toFixed(2) + '%' : '';
+    const chgCls = md ? (md.pct >= 0 ? 'up' : 'down') : '';
+    html += `<div class="${cls}" data-date="${ds}">`
+      + `<div class="dhead"><span class="${numCls}">${d}</span>${dir ? `<span class="ddir">${dir}</span>` : ''}</div>`
+      + `<span class="dface">${face}</span>`
+      + `<div class="dfoot"><span class="dchg ${chgCls}">${chgTxt}</span><span class="dstat">${stat}</span></div>`
+      + `</div>`;
   }
   grid.innerHTML = html;
   $$('#calGrid .cal-cell:not(.empty)').forEach((cell) => {

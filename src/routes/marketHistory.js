@@ -5,8 +5,8 @@ const router = express.Router();
 const { getMonthHistory } = require('../marketHistory');
 
 // GET /api/market-history?month=YYYY-MM
-// 返回三大盘指数在指定月份每个交易日的实际涨跌方向：
-// { code:0, data: { A_INDEX:{ 'YYYY-MM-DD':'up'|'down', ... }, HK_INDEX:{...}, US_INDEX:{...} } }
+// 返回三大盘指数在指定月份每个交易日的实际涨跌方向与涨跌幅：
+// { code:0, data: { A_INDEX:{ 'YYYY-MM-DD':{dir:'up'|'down',pct:Number}, ... }, HK_INDEX:{...}, US_INDEX:{...} } }
 router.get('/', async (req, res) => {
   const month = String(req.query.month || '');
   const m = /^(\d{4})-(\d{1,2})$/.exec(month);

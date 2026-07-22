@@ -60,15 +60,55 @@ async function fetchKline(symbol, year, month) {
   }
 }
 
-// 逐日对比前一交易日收盘，得到每日方向：'up' | 'down'
-function computeDirection(bars) {
+// 逐日对比前一交易日收盘，得到每日方向与涨跌幅（百分比，保留2位）
+function computeDaily(bars) {
   const map = {};
   for (let i = 1; i < bars.length; i++) {
-    const diff = bars[i].close - bars[i - 1].close;
-    if (diff > 0) map[bars[i].date] = 'up';
-    else if (diff < 0) map[bars[i].date] = 'down';
+    const prev = bars[i - 1].close;
+    const cur = bars[i].close;
+    if (!prev) continue;
+    const diff = cur - prev;
+    const pct = +((diff / prev) * 100).toFixed(2);
+    if (diff > 0) map[bars[i].date] = { dir: 'up', pct };
+    else if (diff < 0) map[bars[i].date] = { dir: 'down', pct };
   }
   return map;
+}
+
+// 东财历史日K线（美股完整日线更可靠），返回 [{ date, close }]
+async function fetchEastmoneyKline(secid, year, month) {
+  const beg = `${year}${pad2(month)}01`;
+  const end = `${year}${pad2(month)}31`;
+  const url = `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${secid}`
+    + `&fields1=f1,f2,f3&fields2=f51,f53&klt=101&fqt=0&beg=${beg}&end=${end}`
+    + `&ut=fa5fd1943c7b386f172d6893dbfba10b`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Referer': 'https://quote.eastmoney.com/' },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    if (!json || json.rc !== 0 || !json.data || !Array.isArray(json.data.klines)) return [];
+    return json.data.klines
+      .map((k) => { const f = k.split(','); return { date: f[0], close: parseFloat(f[2]) }; })
+      .filter((b) => b.date && !Number.isNaN(b.close));
+  } catch (e) {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// 美股历史：优先东财（可拿到完整日线），不可达时回退腾讯日K线（通常仅最近一个交易日）
+async function fetchUSHistory(year, month) {
+  for (const secid of ['107.IXIC', '105.IXIC', '109.IXIC']) {
+    const bars = await fetchEastmoneyKline(secid, year, month);
+    if (bars.length >= 2) return bars;
+  }
+  return fetchKline('usIXIC', year, month);
 }
 
 async function getMonthHistory(year, month) {
@@ -77,8 +117,10 @@ async function getMonthHistory(year, month) {
   if (cached && Date.now() - cached.ts < TTL_MS) return cached.data;
   const data = {};
   for (const [market, symbol] of Object.entries(MARKET_SYMBOL)) {
-    const bars = await fetchKline(symbol, year, month);
-    data[market] = computeDirection(bars);
+    const bars = market === 'US_INDEX'
+      ? await fetchUSHistory(year, month)
+      : await fetchKline(symbol, year, month);
+    data[market] = computeDaily(bars);
   }
   _cache.set(key, { ts: Date.now(), data });
   return data;
