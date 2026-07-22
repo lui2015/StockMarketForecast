@@ -104,7 +104,9 @@ router.post('/', (req, res, next) => {
 
 // 读取某条预测关联的 HTML 逻辑文件（需鉴权，仅本人可见）
 router.get('/:id/reason', resolveUser, (req, res) => {
-  const row = db.prepare('SELECT * FROM predictions WHERE id=? AND user_id=?').get(parseInt(req.params.id, 10), req.user.id);
+  const ids = req.viewUserIds;
+  const ph = ids.map(() => '?').join(',');
+  const row = db.prepare(`SELECT * FROM predictions WHERE id=? AND user_id IN (${ph})`).get(parseInt(req.params.id, 10), ...ids);
   if (!row || !row.reason_file) return res.status(404).json({ code: 404, msg: '无关联逻辑文件' });
   const fp = path.join(config.reasonsDir, row.reason_file);
   if (!fs.existsSync(fp)) return res.status(404).json({ code: 404, msg: '文件不存在' });
@@ -117,8 +119,11 @@ router.get('/:id/reason', resolveUser, (req, res) => {
 // 列表/筛选
 router.get('/', resolveUser, (req, res) => {
   const { market, status, symbol, target_date, source, start_date, end_date, page = 1, size = 20 } = req.query;
-  const where = ['user_id=?'];
-  const params = [req.user.id];
+  let ids = req.viewUserIds;
+  if (req.query.user) ids = [parseInt(req.query.user, 10)];
+  const ph = ids.map(() => '?').join(',');
+  const where = [`user_id IN (${ph})`];
+  const params = [...ids];
   const markets = expandMarketFilter(market);
   if (markets) { where.push(`market IN (${markets.map(() => '?').join(',')})`); params.push(...markets); }
   if (symbol) { where.push('symbol=?'); params.push(symbol); }
@@ -134,7 +139,9 @@ router.get('/', resolveUser, (req, res) => {
 });
 
 router.get('/:id', resolveUser, (req, res) => {
-  const row = db.prepare('SELECT * FROM predictions WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  const ids = req.viewUserIds;
+  const ph = ids.map(() => '?').join(',');
+  const row = db.prepare(`SELECT * FROM predictions WHERE id=? AND user_id IN (${ph})`).get(req.params.id, ...ids);
   if (!row) return res.status(404).json({ code: 404, msg: '未找到' });
   res.json({ code: 0, data: row });
 });
@@ -148,7 +155,7 @@ router.patch('/:id/result', resolveUser, (req, res) => {
   const row = db.prepare('SELECT * FROM predictions WHERE id=?').get(id);
   if (!row) return res.status(404).json({ code: 404, msg: '未找到预测' });
   const isAdmin = req.headers['x-admin-pass'] === config.adminPass;
-  if (row.user_id !== req.user.id && !isAdmin) {
+  if (!req.viewUserIds.includes(row.user_id) && !isAdmin) {
     return res.status(403).json({ code: 403, msg: '无权修改该预测' });
   }
   const body = req.body || {};

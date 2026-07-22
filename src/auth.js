@@ -21,6 +21,27 @@ function bumpApiCall() {
   try { bumpApiCallStmt.run(); } catch (e) { /* 计数失败忽略 */ }
 }
 
+// 网页「web」账户与所有 AI 调用账户属于同一所有者：
+// 在网页端查看历史 / 首页统计时，应把 AI 接口提交的预测一并展示。
+let _ownerScopeCache = null;
+function ownerScopeIds() {
+  if (_ownerScopeCache) return _ownerScopeCache;
+  const ids = [];
+  const web = db.prepare("SELECT id FROM accounts WHERE name=? AND type=?").get('web', 'USER');
+  if (web) ids.push(web.id);
+  const ai = db.prepare("SELECT id FROM accounts WHERE type='AI'").all();
+  for (const a of ai) ids.push(a.id);
+  _ownerScopeCache = ids;
+  return ids;
+}
+
+// 计算「可见用户集合」：web / AI 账户共享同一视图；其他独立 USER 仅看自己
+function scopeFor(user) {
+  if (user.type === 'AI') return ownerScopeIds();
+  if (user.name === 'web' && user.type === 'USER') return ownerScopeIds();
+  return [user.id];
+}
+
 // 解析调用方：Bearer API Key（AI）/ X-User-Id（网页）/ 默认 web 账户
 function resolveUser(req, res, next) {
   const auth = req.headers['authorization'] || '';
@@ -34,17 +55,26 @@ function resolveUser(req, res, next) {
     }
     bumpApiCall();
     req.user = acc;
+    req.viewUserIds = scopeFor(acc);
     return next();
   }
   const uid = parseInt(req.headers['x-user-id'] || '', 10);
   if (uid) {
     const acc = db.prepare('SELECT * FROM accounts WHERE id=? AND type=?').get(uid, 'USER');
-    if (acc) { req.user = acc; return next(); }
+    if (acc) {
+      req.user = acc;
+      req.viewUserIds = scopeFor(acc);
+      return next();
+    }
   }
   // 默认使用 web 演示账户
   const web = db.prepare("SELECT * FROM accounts WHERE name=? AND type=?").get('web', 'USER');
-  if (web) { req.user = web; return next(); }
+  if (web) {
+    req.user = web;
+    req.viewUserIds = scopeFor(web);
+    return next();
+  }
   return res.status(401).json({ code: 401, msg: '未识别的用户' });
 }
 
-module.exports = { resolveUser };
+module.exports = { resolveUser, ownerScopeIds };

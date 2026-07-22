@@ -6,15 +6,22 @@ const { MARKETS, STOCK_MARKETS, expandMarketFilter } = require('../market');
 const { resolveUser } = require('../auth');
 const router = express.Router();
 
+// 构造「用户集合」过滤子句（web + AI 账户共享同一视图）
+function userIn(ids) {
+  const ph = ids.map(() => '?').join(',');
+  return { clause: `user_id IN (${ph})`, ids };
+}
+
 // 今日预测结果（大盘三类）
 const INDEX_MARKETS = ['A_INDEX', 'HK_INDEX', 'US_INDEX'];
 router.get('/today', resolveUser, (req, res) => {
   const date = (req.query.date || new Date().toISOString().slice(0, 10));
+  const scope = userIn(req.viewUserIds);
   const out = {};
   INDEX_MARKETS.forEach((m) => {
     const rows = db.prepare(
-      'SELECT * FROM predictions WHERE user_id=? AND market=? AND target_date=? ORDER BY id DESC'
-    ).all(req.user.id, m, date);
+      `SELECT * FROM predictions WHERE ${scope.clause} AND market=? AND target_date=? ORDER BY id DESC`
+    ).all(...scope.ids, m, date);
     out[m] = rows;
   });
   res.json({ code: 0, data: { date, order: INDEX_MARKETS, markets: out } });
@@ -23,8 +30,9 @@ router.get('/today', resolveUser, (req, res) => {
 // 统计
 router.get('/', resolveUser, (req, res) => {
   const { market, date } = req.query;
-  const base = ['user_id=?', "status='VERIFIED'"];
-  const params = [req.user.id];
+  const scope = userIn(req.viewUserIds);
+  const base = [scope.clause, "status='VERIFIED'"];
+  const params = [...scope.ids];
   if (market) { base.push('market=?'); params.push(market); }
   if (date) { base.push('target_date=?'); params.push(date); }
   const cond = base.join(' AND ');
@@ -32,11 +40,11 @@ router.get('/', resolveUser, (req, res) => {
   const total = db.prepare(`SELECT COUNT(*) c, SUM(is_hit) h FROM predictions WHERE ${cond}`).get(...params);
 
   // 该范围总提交数（含待校验），用于首页「今日」展示
-  const scopeBase = ['user_id=?'];
-  const scopeParams = [req.user.id];
+  const scopeBase = [scope.clause];
+  const scopeParams = [...scope.ids];
   if (market) { scopeBase.push('market=?'); scopeParams.push(market); }
   if (date) { scopeBase.push('target_date=?'); scopeParams.push(date); }
-  const scope = db.prepare(`SELECT COUNT(*) c, SUM(CASE WHEN status='VERIFIED' THEN 1 ELSE 0 END) v,
+  const sc = db.prepare(`SELECT COUNT(*) c, SUM(CASE WHEN status='VERIFIED' THEN 1 ELSE 0 END) v,
     SUM(CASE WHEN status='PENDING' THEN 1 ELSE 0 END) p FROM predictions WHERE ${scopeBase.join(' AND ')}`).get(...scopeParams);
   const accuracy = total.c ? total.h / total.c : 0;
 
@@ -82,7 +90,7 @@ router.get('/', resolveUser, (req, res) => {
       total: total.c, hits: total.h || 0, accuracy,
       weekAccuracy: weekAcc, weekTotal: weekRow.c, weekHits: weekRow.h || 0,
       monthAccuracy: monthAcc, monthTotal: monthRow.c, monthHits: monthRow.h || 0,
-      scopeTotal: scope.c, scopeVerified: scope.v || 0, scopePending: scope.p || 0,
+      scopeTotal: sc.c, scopeVerified: sc.v || 0, scopePending: sc.p || 0,
       byMarket, trend, streak: { type: streakType, count: streak },
     },
   });
@@ -90,14 +98,16 @@ router.get('/', resolveUser, (req, res) => {
 
 // 个股列表（某用户提交过的个股 symbol）
 router.get('/symbols', resolveUser, (req, res) => {
+  const scope = userIn(req.viewUserIds);
   const rows = db.prepare(`SELECT symbol, MAX(symbol_name) AS symbol_name, COUNT(*) AS c
-    FROM predictions WHERE user_id=? AND market IN (${STOCK_MARKETS.map(() => '?').join(',')})
-    GROUP BY symbol ORDER BY c DESC, symbol`).all(req.user.id, ...STOCK_MARKETS);
+    FROM predictions WHERE ${scope.clause} AND market IN (${STOCK_MARKETS.map(() => '?').join(',')})
+    GROUP BY symbol ORDER BY c DESC, symbol`).all(...scope.ids, ...STOCK_MARKETS);
   res.json({ code: 0, data: rows });
 });
 
 // 预测日历：某月每天的聚合统计（含待校验/异常），支持按市场/分类筛选
 router.get('/calendar', resolveUser, (req, res) => {
+  const scope = userIn(req.viewUserIds);
   const month = (req.query.month || new Date().toISOString().slice(0, 7)); // YYYY-MM
   const like = month + '%';
   const markets = expandMarketFilter(req.query.market);
@@ -107,8 +117,8 @@ router.get('/calendar', resolveUser, (req, res) => {
       SUM(CASE WHEN status='PENDING' THEN 1 ELSE 0 END) pending,
       SUM(CASE WHEN status='ERROR' THEN 1 ELSE 0 END) err,
       SUM(is_hit) hits
-    FROM predictions WHERE user_id=? AND target_date LIKE ?`;
-  const params = [req.user.id, like];
+    FROM predictions WHERE ${scope.clause} AND target_date LIKE ?`;
+  const params = [...scope.ids, like];
   if (markets) { sql += ` AND market IN (${markets.map(() => '?').join(',')})`; params.push(...markets); }
   const symbol = req.query.symbol;
   if (symbol) { sql += ' AND symbol=?'; params.push(symbol); }
