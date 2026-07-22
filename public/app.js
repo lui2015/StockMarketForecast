@@ -352,10 +352,10 @@ function renderCalendar(data, today) {
       } else if (info.pending > 0 || info.err > 0) {
         cls += ' pending'; stat = '待校验'; face = '⏳';
       }
-      // 预测方向（看涨/看跌）
+      // 预测方向（看涨红 / 看跌绿）
       const parts = [];
-      if (info.up > 0) parts.push(`<span class="up">↑${info.up}</span>`);
-      if (info.down > 0) parts.push(`<span class="down">↓${info.down}</span>`);
+      if (info.up > 0) parts.push(`<span class="up">看涨${info.up > 1 ? info.up : ''}</span>`);
+      if (info.down > 0) parts.push(`<span class="down">看跌${info.down > 1 ? info.down : ''}</span>`);
       dir = parts.join(' ');
     }
     html += `<div class="${cls}" data-date="${ds}"><span class="${numCls}">${d}</span><span class="dface">${face}</span>${dir ? `<span class="ddir">${dir}</span>` : ''}<span class="dstat">${stat}</span></div>`;
