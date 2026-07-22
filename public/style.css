@@ -167,6 +167,10 @@ input[type=text], textarea, select, #nameInput {
 .hist-list .row.up-row { cursor: pointer; border-radius: 10px; padding: 12px 8px; transition: background .15s; }
 .hist-list .row.up-row:hover { background: var(--card2); }
 
+/* 历史列表：与「即将公布的预测」一致的紧凑卡片风格 */
+#histList .row.hist-row { border-radius: 10px; padding: 12px 8px; transition: background .15s; }
+#histList .row.hist-row:hover { background: var(--card2); }
+
 /* 文件上传控件 */
 input[type="file"] {
   display: block; width: 100%; padding: 10px; border: 1px dashed #36436b; border-radius: 12px;
