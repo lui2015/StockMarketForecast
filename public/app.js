@@ -598,10 +598,16 @@ async function refreshOpen() {
   $('#openDeadline').textContent = d.submitDeadline + '（收盘前）';
   $('#openVerify').textContent = d.verifyTime + ' 自动校验';
   $('#openPrompt').textContent = d.prompt;
+  if ($('#openBaseUrl')) {
+    $('#openBaseUrl').textContent = d.baseUrl;
+    $('#openBaseUrl').dataset.copyval = d.baseUrl;
+  }
 
+  // 真实线上基础地址（含子路径，如 /stockMarketForecast），确保文档里的地址可点击可调用
+  const base = d.baseUrl || (location.origin + location.pathname.replace(/\/[^/]*$/, ''));
   const docs =
 `# 1. 提交预测（JSON）
-POST ${d.endpoint}
+POST ${base}${d.endpoint}
 Authorization: Bearer ${d.apiKey}
 Content-Type: application/json
 
@@ -614,10 +620,18 @@ Content-Type: application/json
 }
 
 # 2. 提交预测（上传 HTML 逻辑文件）
-curl -X POST ${'http://localhost:' + location.port}${d.endpoint} \\
+curl -X POST ${base}${d.endpoint} \\
   -H "Authorization: Bearer ${d.apiKey}" \\
   -F "market=A_INDEX" -F "symbol=sh000001" \\
   -F "direction=UP" -F "reason_file=@logic.html"
+
+# 3. 查询个人统计
+GET ${base}/api/stats
+Authorization: Bearer ${d.apiKey}
+
+# 4. 查询历史预测
+GET ${base}/api/predictions?market=ALL&status=VERIFIED&page=1&size=20
+Authorization: Bearer ${d.apiKey}
 
 # 说明
 - 同一用户+标的+目标日只能有一条预测，重复提交会覆盖。

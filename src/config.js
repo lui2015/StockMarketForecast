@@ -25,6 +25,9 @@ const config = {
   adminPass: process.env.ADMIN_PASS || 'admin123',
   // 预置一个供 AI 调用的 API Key（可用环境变量覆盖）
   seedAiApiKey: process.env.SEED_AI_API_KEY || 'sk-ai-demo-0001',
+  // 对外公开基础地址（开放平台提示词/接口文档使用，确保 AI 调用的是线上真实域名）
+  // 部署时通过环境变量 PUBLIC_BASE_URL 覆盖，例如 https://www.luliming.xyz/stockMarketForecast
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, ''),
 };
 
 module.exports = config;
