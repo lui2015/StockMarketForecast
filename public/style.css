@@ -44,6 +44,11 @@ body {
   color: #fff; background: linear-gradient(90deg, var(--accent), var(--accent2)); cursor: pointer;
 }
 .primary.sm { padding: 9px 14px; font-size: 13px; }
+.danger {
+  padding: 12px 16px; border: 1px solid rgba(255,90,90,.4); border-radius: 12px; font-size: 14px; font-weight: 700;
+  color: #ff8a8a; background: rgba(255,90,90,.12); cursor: pointer;
+}
+.danger:hover { background: rgba(255,90,90,.2); }
 
 .card {
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
@@ -272,7 +277,7 @@ input[type="file"]::file-selector-button {
 .date-range { display: flex; align-items: center; gap: 8px; }
 .date-input.sm { width: auto; flex: 1 1 110px; min-width: 0; padding: 8px 10px; }
 .stock-sel { padding: 8px 10px; border-radius: 8px; border: 1px solid #2c3759; background: #0f1526; color: var(--text); font-size: 13px; }
-.modal-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+.modal-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 6px; }
 
 /* 移动端适配 */
 @media (max-width: 640px) {
@@ -292,9 +297,13 @@ input[type="file"]::file-selector-button {
   .metric-label { font-size: 11px; }
   .metric-sub { font-size: 11px; }
 
-  /* 今日三大盘：单列更清晰 */
-  .idx-grid { grid-template-columns: 1fr; gap: 10px; }
-  .idx-result { font-size: 22px; }
+  /* 今日三大盘：保持三列并列（紧凑） */
+  .idx-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .idx-card { padding: 10px; }
+  .idx-name { font-size: 11px; margin-bottom: 6px; }
+  .idx-result { font-size: 17px; }
+  .idx-dir { margin-top: 5px; font-size: 11px; }
+  .idx-detail { margin-top: 10px; padding-top: 8px; font-size: 12px; }
 
   /* 日历：筛选行横滑 + 格子内容紧凑 */
   .cal-head { flex-wrap: wrap; gap: 8px; }
@@ -302,6 +311,15 @@ input[type="file"]::file-selector-button {
   .cal-filter .seg { flex-wrap: nowrap; flex: 0 0 auto; }
   .cal-filter .seg button { flex: 0 0 auto; min-width: auto; padding: 8px 10px; font-size: 12px; }
   .cal-filter .stock-sel { flex: 0 0 auto; min-width: 72px; }
+
+  /* 历史筛选：换行铺满，避免挤压错乱 */
+  .filters { flex-wrap: wrap; gap: 8px; }
+  .filters .seg { flex: 1 1 100%; gap: 6px; }
+  .filters .seg button { flex: 1 1 auto; min-width: 0; padding: 9px 6px; font-size: 12px; }
+  .filters #histStockSel { flex: 1 1 100%; width: 100%; }
+  .filters select:not(#histStockSel) { flex: 1 1 calc(50% - 4px); width: auto; }
+  .filters .date-range { flex: 1 1 100%; }
+  .filters .date-input.sm { flex: 1 1 0; min-width: 0; }
   .cal-grid, .cal-week { gap: 4px; }
   .cal-cell { min-height: 58px; padding: 5px; }
   .cal-cell .dnum { font-size: 11px; }

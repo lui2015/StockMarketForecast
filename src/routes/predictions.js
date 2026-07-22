@@ -217,6 +217,27 @@ router.patch('/:id', (req, res, next) => {
   }
 });
 
+// 删除预测（仅本人/同 scope 或管理员）
+router.delete('/:id', resolveUser, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const row = db.prepare('SELECT * FROM predictions WHERE id=?').get(id);
+  if (!row) return res.status(404).json({ code: 404, msg: '未找到预测' });
+  const isAdmin = req.headers['x-admin-pass'] === config.adminPass;
+  if (!req.viewUserIds.includes(row.user_id) && !isAdmin) {
+    return res.status(403).json({ code: 403, msg: '无权删除该预测' });
+  }
+  try {
+    if (row.reason_file) {
+      const fp = path.join(config.reasonsDir, row.reason_file);
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    }
+    db.prepare('DELETE FROM predictions WHERE id=?').run(id);
+    res.json({ code: 0, msg: '已删除' });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: '删除失败: ' + e.message });
+  }
+});
+
 // 手动修正预测结果（仅本人或管理员）
 //  - result: 'HIT' | 'MISS'   -> 直接判定命中/未中（VERIFIED）
 //  - result: 'PENDING'        -> 恢复为待校验

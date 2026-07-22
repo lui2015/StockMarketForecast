@@ -229,11 +229,15 @@ async function ensureStockSymbols() {
   if (stockSymbolsLoaded) return;
   const r = await api('api/stats/symbols');
   if (r.code === 0) {
-    const sel = $('#stockSel');
-    r.data.forEach((s) => {
-      const o = document.createElement('option');
-      o.value = s.symbol; o.textContent = s.symbol_name || s.symbol;
-      sel.appendChild(o);
+    // 首页日历与历史页共用同一份个股列表，保持筛选一致
+    ['#stockSel', '#histStockSel'].forEach((selId) => {
+      const sel = $(selId);
+      if (!sel) return;
+      r.data.forEach((s) => {
+        const o = document.createElement('option');
+        o.value = s.symbol; o.textContent = s.symbol_name || s.symbol;
+        sel.appendChild(o);
+      });
     });
     stockSymbolsLoaded = true;
   }
@@ -547,8 +551,10 @@ function renderTrend(trend) {
 
 /* ---------- 历史 ---------- */
 async function refreshHistory() {
-  const m = $('#histMarketSeg .active').dataset.m;
+  const activeBtn = $('#histMarketSeg .active');
   const stockSym = $('#histStockSel').value;
+  // 选择了个股时不再按大盘市场过滤
+  const m = stockSym ? '' : (activeBtn ? activeBtn.dataset.m : '');
   const s = $('#fStatus').value;
   const src = $('#fSource').value;
   const qs = new URLSearchParams({ page: 1, size: 50 });
@@ -616,35 +622,27 @@ function histRowHtml(p) {
 }
 function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
-/* 历史筛选：市场段与上述首页一致，个股下拉复用预置 */
+/* 历史筛选：市场段与个股下拉与首页日历保持一致 */
 function bindHistFilters() {
   $$('#histMarketSeg button').forEach((b) => {
     b.onclick = () => {
       $$('#histMarketSeg button').forEach((x) => x.classList.remove('active'));
       b.classList.add('active');
-      const m = b.dataset.m;
-      if (m === 'A_STOCK' || m === 'HK_STOCK') { $('#histStockSel').style.display = ''; }
-      else {
-        $('#histStockSel').style.display = (m === '') ? '' : 'none';
-        $('#histStockSel').value = '';
-      }
-      if (m === 'A_STOCK' || m === 'HK_STOCK') renderHistStockSel(m);
+      $('#histStockSel').value = '';
       refreshHistory();
     };
   });
-  const sel = $('#histStockSel');
-  sel.onchange = refreshHistory;
+  // 选择个股：与首页一致，取消大盘选中，仅按个股筛选
+  $('#histStockSel').onchange = () => {
+    if ($('#histStockSel').value) {
+      $$('#histMarketSeg button').forEach((x) => x.classList.remove('active'));
+    }
+    refreshHistory();
+  };
   $('#fStatus').onchange = refreshHistory;
   $('#fSource').onchange = refreshHistory;
   $('#fStart').onchange = refreshHistory;
   $('#fEnd').onchange = refreshHistory;
-}
-function renderHistStockSel(market) {
-  const sel = $('#histStockSel');
-  sel.innerHTML = '<option value="" disabled selected>个股</option>';
-  (state.meta.presets[market] || []).forEach((x) => {
-    const o = document.createElement('option'); o.value = x.symbol; o.text = x.name; sel.appendChild(o);
-  });
 }
 
 /* ---------- 开放平台 ---------- */
@@ -844,6 +842,28 @@ editDrop.addEventListener('drop', (e) => {
 $('#closeEditPred').onclick = () => $('#editPredModal').classList.add('hidden');
 $('#editPredModal').onclick = (e) => { if (e.target === $('#editPredModal')) $('#editPredModal').classList.add('hidden'); };
 $('#editPredSave').onclick = saveEditPred;
+$('#editPredDelete').onclick = deleteEditPred;
+async function deleteEditPred() {
+  if (!currentEditPredId) return;
+  if (!confirm('确定删除该预测？此操作不可恢复。')) return;
+  const msg = $('#editPredMsg');
+  try {
+    const res = await fetch('api/predictions/' + currentEditPredId, {
+      method: 'DELETE',
+      headers: headers(),
+    });
+    const j = await res.json();
+    if (j.code === 0) {
+      msg.textContent = '已删除'; msg.className = 'msg ok';
+      await refreshHistory();
+      setTimeout(() => $('#editPredModal').classList.add('hidden'), 600);
+    } else {
+      msg.textContent = j.msg || '删除失败'; msg.className = 'msg err';
+    }
+  } catch (e) {
+    msg.textContent = '请求失败'; msg.className = 'msg err';
+  }
+}
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-reason]');
   if (btn) viewReason(btn.dataset.reason);
