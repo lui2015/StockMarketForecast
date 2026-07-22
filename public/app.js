@@ -11,6 +11,7 @@ const state = {
   calMonth: new Date().toISOString().slice(0, 7),
   calMarket: 'A_INDEX',
   calSymbol: '',
+  calAnim: 'fade', // 日历切换动效：fade / left / right
 };
 
 const $ = (s) => document.querySelector(s);
@@ -358,6 +359,13 @@ function renderCalendar(data, today) {
   $$('#calGrid .cal-cell:not(.empty)').forEach((cell) => {
     bindCalCell(cell);
   });
+
+  // 触发切换动效（先移除再强制回流后添加，确保每次重渲染都重放动画）
+  const anim = state.calAnim || 'fade';
+  grid.classList.remove('cal-anim-fade', 'cal-anim-left', 'cal-anim-right');
+  void grid.offsetWidth;
+  grid.classList.add('cal-anim-' + anim);
+  state.calAnim = 'fade'; // 复位，默认淡入
 }
 
 // 日历单元格：短按跳转当天 HTML，长按(500ms)打开手动修正结果
@@ -499,6 +507,7 @@ $('#stockSel').onchange = () => {
   refreshHome();
 };
 function shiftMonth(delta) {
+  state.calAnim = delta < 0 ? 'left' : 'right'; // 上一月从左侧滑入，下一月从右侧滑入
   let [y, m] = state.calMonth.split('-').map(Number);
   m += delta;
   if (m < 1) { m = 12; y--; }
