@@ -78,10 +78,17 @@ body {
 
 .field { margin-top: 14px; }
 .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-.symbol-box { margin-top: 12px; }
+.symbol-box { margin-top: 12px; position: relative; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { padding: 8px 12px; border-radius: 999px; border: 1px solid #2c3759; background: var(--card2); font-size: 13px; cursor: pointer; }
 .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* 个股名称自动获取代码的搜索建议下拉 */
+.suggest { position: absolute; left: 0; right: 0; z-index: 30; margin-top: 4px;
+  background: var(--card2); border: 1px solid #2c3759; border-radius: 12px; max-height: 220px; overflow-y: auto; }
+.suggest.hidden { display: none; }
+.suggest-item { padding: 10px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #1d2438; }
+.suggest-item:last-child { border-bottom: 0; }
+.suggest-item:hover { background: #232c46; }
 input[type=text], textarea, select, #nameInput {
   width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #2c3759;
   background: var(--card2); color: var(--text); font-size: 14px; resize: vertical;

@@ -9,6 +9,7 @@ const MARKETS = {
   US_INDEX: '美股大盘',
   A_STOCK: 'A股个股',
   HK_STOCK: '港股个股',
+  US_STOCK: '美股个股',
 };
 
 // 预置大盘指数（symbol 与行情源编码对应）
@@ -57,6 +58,12 @@ function normalizeSymbol(market, raw) {
     if (/^\d{4,5}$/.test(s)) return 'hk' + s.padStart(5, '0');
     return null;
   }
+  if (market === 'US_STOCK') {
+    // 允许 usaapl / AAPL（自动加 us 前缀，内部统一小写）
+    if (/^us[a-z]+$/.test(s)) return s;
+    if (/^[a-z]{1,6}$/i.test(s)) return 'us' + s.toLowerCase();
+    return null;
+  }
   return null;
 }
 
@@ -66,7 +73,7 @@ function toSecid(symbol) {
   if (symbol.startsWith('sz')) return '0.' + symbol.slice(2);
   if (symbol.startsWith('hk')) return '116.' + symbol.slice(2);
   if (symbol.startsWith('r_hk')) return '124.' + symbol.slice(3); // 港股指数
-  if (symbol.startsWith('us')) return '100.' + symbol.slice(2); // 美股指数
+  if (symbol.startsWith('us')) return '100.' + symbol.slice(2).toUpperCase(); // 美股指数/个股（东方财富 secid 大写代码）
   if (symbol === 'sh000001' || symbol === 'sz399001' || symbol === 'sz399006') {
     return symbol.startsWith('sh') ? '1.' + symbol.slice(2) : '0.' + symbol.slice(2);
   }
@@ -173,6 +180,62 @@ async function fetchSecurityName(symbol) {
   return null;
 }
 
+// 按名称/代码搜索标的（外部接口，best-effort），返回 [{ symbol, name, market }]
+// 用于提交预测时「输入名称自动获取代码」。market 可限定 A_STOCK/HK_STOCK/US_STOCK。
+// 数据源：腾讯股票智能提示（服务器端可达，东方财富该接口在服务器侧被拦截）。
+async function searchSymbolByName(q, market) {
+  const query = String(q || '').trim();
+  if (query.length < 1) return [];
+  const url = `https://smartbox.gtimg.cn/s3/?v=2&t=all&q=${encodeURIComponent(query)}`;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://stockapp.finance.qq.com/' },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const text = await res.text();
+    // 形如 v_hint="us~aapl.oq~苹果~pg~GP^hk~00700~腾讯控股~txkg~GP^..."
+    // 每条以 ^ 分隔，字段以 ~ 分隔：prefix~code~name~pinyin~type
+    const m = text.match(/v_hint="([^"]*)"/);
+    if (!m) return [];
+    const entries = m[1].split('^').filter(Boolean);
+    const out = [];
+    const seen = new Set();
+    for (const e of entries) {
+      const f = e.split('~');
+      if (f.length < 3) continue;
+      const [prefix, code, name, , type] = f;
+      if (type && !type.startsWith('GP')) continue; // 仅保留正股，剔除权证/期权
+      const mapped = mapTencentPrefix(prefix, code);
+      if (!mapped) continue;
+      if (market && mapped.market !== market) continue;
+      const key = mapped.market + ':' + mapped.symbol;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ symbol: mapped.symbol, name: name || mapped.symbol, market: mapped.market });
+      if (out.length >= 10) break;
+    }
+    return out;
+  } catch (e) {
+    return [];
+  }
+}
+
+// 腾讯智能提示前缀 -> 内部市场与 symbol
+function mapTencentPrefix(prefix, code) {
+  if (prefix === 'us') {
+    const c = code.replace(/\.(oq|ps)$/i, ''); // 去掉 .oq / .ps 后缀
+    return { market: 'US_STOCK', symbol: 'us' + c.toLowerCase() };
+  }
+  if (prefix === 'hk') return { market: 'HK_STOCK', symbol: 'hk' + code.padStart(5, '0') };
+  if (prefix === 'sh') return { market: 'A_STOCK', symbol: 'sh' + code };
+  if (prefix === 'sz') return { market: 'A_STOCK', symbol: 'sz' + code };
+  return null;
+}
+
 // 获取某标的在指定交易日的实际涨跌幅；返回 { changePct, close, prevClose } 或 null
 async function getQuote(symbol, dateStr) {
   if (config.quoteMode === 'mock') {
@@ -186,7 +249,7 @@ async function getQuote(symbol, dateStr) {
 
 // 将前端筛选值展开为具体市场数组：ALL/空 → 不过滤；INDEX → 三大盘；STOCK → 个股；或逗号列表
 const INDEX_MARKETS = ['A_INDEX', 'HK_INDEX', 'US_INDEX'];
-const STOCK_MARKETS = ['A_STOCK', 'HK_STOCK'];
+const STOCK_MARKETS = ['A_STOCK', 'HK_STOCK', 'US_STOCK'];
 function expandMarketFilter(m) {
   if (!m || m === 'ALL') return null;
   if (m === 'INDEX') return INDEX_MARKETS;
@@ -206,4 +269,5 @@ module.exports = {
   getQuote,
   toSecid,
   expandMarketFilter,
+  searchSymbolByName,
 };

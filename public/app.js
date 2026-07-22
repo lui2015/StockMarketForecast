@@ -75,7 +75,7 @@ function bindMarketSeg() {
 function renderSymbolBox() {
   const box = $('#symbolBox');
   const m = state.market;
-  if (m === 'A_INDEX' || m === 'HK_INDEX') {
+  if (m === 'A_INDEX' || m === 'HK_INDEX' || m === 'US_INDEX') {
     const list = state.meta.presets[m] || [];
     box.innerHTML = '<div class="chips">' +
       list.map((x, i) => `<span class="chip ${i === 0 ? 'active' : ''}" data-sym="${x.symbol}" data-name="${x.name}">${x.name}</span>`).join('') +
@@ -90,17 +90,68 @@ function renderSymbolBox() {
         state.symbolName = c.dataset.name;
       };
     });
-  } else {
-    const ph = m === 'A_STOCK' ? '输入代码，如 600519 或 sh600519' : '输入港股代码，如 00700';
-    const nmPh = m === 'A_STOCK' ? '股票名称，如 贵州茅台' : '股票名称，如 腾讯控股';
-    box.innerHTML =
-      `<input type="text" id="symInput" placeholder="${ph}" />` +
-      `<input type="text" id="symNameInput" placeholder="${nmPh}" style="margin-top:8px" />`;
-    state.symbol = null;
-    state.symbolName = '';
-    $('#symInput').oninput = (e) => { state.symbol = e.target.value.trim(); };
-    $('#symNameInput').oninput = (e) => { state.symbolName = e.target.value.trim(); };
+    return;
   }
+  // 个股（A股 / 港股 / 美股）：股票名称必填且置于代码之前，输入名称自动获取代码
+  const namePh = m === 'US_STOCK'
+    ? '股票名称（必填），如 苹果 / Apple'
+    : (m === 'A_STOCK' ? '股票名称（必填），如 贵州茅台' : '股票名称（必填），如 腾讯控股');
+  const codePh = m === 'US_STOCK'
+    ? '股票代码（自动获取，如 usaapl）'
+    : (m === 'A_STOCK' ? '股票代码（自动获取，如 sh600519）' : '股票代码（自动获取，如 hk00700）');
+  box.innerHTML =
+    `<input type="text" id="symNameInput" placeholder="${namePh}" autocomplete="off" />` +
+    `<input type="text" id="symInput" placeholder="${codePh}" style="margin-top:8px" />` +
+    `<div id="symSearchHint" class="meta" style="margin-top:6px"></div>` +
+    `<div id="symSuggest" class="suggest hidden"></div>`;
+  state.symbol = null;
+  state.symbolName = '';
+  $('#symNameInput').oninput = (e) => {
+    state.symbolName = e.target.value.trim();
+    onSymbolNameInput(e.target.value.trim());
+  };
+  $('#symInput').oninput = (e) => { state.symbol = e.target.value.trim(); };
+}
+
+// 输入股票名称后自动调用外部接口获取代码（并填充补充信息）
+let _symSearchTimer = null;
+async function onSymbolNameInput(q) {
+  const hint = $('#symSearchHint');
+  const suggest = $('#symSuggest');
+  if (!q || q.length < 1) { if (hint) hint.textContent = ''; if (suggest) suggest.classList.add('hidden'); return; }
+  clearTimeout(_symSearchTimer);
+  _symSearchTimer = setTimeout(async () => {
+    const m = state.market;
+    const r = await api('api/search?q=' + encodeURIComponent(q) + '&market=' + m);
+    if (!r || r.code !== 0) return;
+    const list = r.data || [];
+    if (list.length === 1) {
+      const it = list[0];
+      $('#symInput').value = it.symbol;
+      state.symbol = it.symbol;
+      if (hint) hint.textContent = '已匹配：' + it.name + '（' + it.symbol + '）';
+      suggest.classList.add('hidden');
+    } else if (list.length > 1) {
+      if (hint) hint.textContent = '请选择匹配项：';
+      suggest.innerHTML = list.map((it) =>
+        `<div class="suggest-item" data-sym="${it.symbol}" data-name="${it.name}">${it.name} <span class="meta">${it.symbol}</span></div>`
+      ).join('');
+      suggest.classList.remove('hidden');
+      $$('#symSuggest .suggest-item').forEach((el) => {
+        el.onclick = () => {
+          $('#symInput').value = el.dataset.sym;
+          state.symbol = el.dataset.sym;
+          state.symbolName = el.dataset.name;
+          $('#symNameInput').value = el.dataset.name;
+          suggest.classList.add('hidden');
+          if (hint) hint.textContent = '已匹配：' + el.dataset.name + '（' + el.dataset.sym + '）';
+        };
+      });
+    } else {
+      if (hint) hint.textContent = '未找到匹配，请手动填写代码';
+      suggest.classList.add('hidden');
+    }
+  }, 400);
 }
 
 /* ---------- 提交 ---------- */
@@ -162,9 +213,11 @@ $('#submitBtn').onclick = async () => {
   msg.textContent = ''; msg.className = 'msg';
   let sym = state.symbol;
   let symName = state.symbolName || '';
-  if (state.market === 'A_STOCK' || state.market === 'HK_STOCK') {
+  if (state.market === 'A_STOCK' || state.market === 'HK_STOCK' || state.market === 'US_STOCK') {
     sym = $('#symInput') ? $('#symInput').value.trim() : '';
     symName = $('#symNameInput') ? $('#symNameInput').value.trim() : '';
+    if (!symName) { msg.textContent = '请填写股票名称'; msg.className = 'msg err'; return; }
+    if (!sym) { msg.textContent = '请填写或自动获取股票代码'; msg.className = 'msg err'; return; }
   } else if (state.market === 'A_INDEX' || state.market === 'HK_INDEX' || state.market === 'US_INDEX') {
     // 大盘指数：名称取自预置映射，不依赖可能为空 / 被误改的 state.symbolName
     const preset = (state.meta.presets[state.market] || []).find((x) => x.symbol === sym);
@@ -869,6 +922,9 @@ document.addEventListener('click', (e) => {
   if (btn) viewReason(btn.dataset.reason);
   const eb = e.target.closest('[data-edit]');
   if (eb) openEditPred(parseInt(eb.dataset.edit, 10));
+  // 点击标的搜索下拉之外时收起建议
+  const sg = $('#symSuggest');
+  if (sg && !e.target.closest('#symbolBox')) sg.classList.add('hidden');
 });
 
 /* ---------- Tab 切换 ---------- */
