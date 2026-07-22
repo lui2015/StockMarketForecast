@@ -286,8 +286,110 @@ function renderCalendar(data, today) {
   }
   grid.innerHTML = html;
   $$('#calGrid .cal-cell:not(.empty)').forEach((cell) => {
-    cell.onclick = () => loadDayDetail(cell.dataset.date);
+    bindCalCell(cell);
   });
+}
+
+// 日历单元格：短按跳转当天 HTML，长按(500ms)打开手动修正结果
+function bindCalCell(cell) {
+  const date = cell.dataset.date;
+  let timer = null, longFired = false;
+  const start = () => {
+    longFired = false;
+    timer = setTimeout(() => { longFired = true; openEditResult(date); }, 500);
+  };
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  cell.onpointerdown = start;
+  cell.onpointerup = cancel;
+  cell.onpointerleave = cancel;
+  cell.onpointercancel = cancel;
+  cell.oncontextmenu = (e) => { e.preventDefault(); longFired = true; openEditResult(date); };
+  cell.onclick = () => {
+    if (longFired) { longFired = false; return; }
+    loadDayDetail(date);
+  };
+}
+
+// 长按日历某天：手动修正当天的预测结果
+async function openEditResult(date) {
+  let url = 'api/predictions?target_date=' + encodeURIComponent(date) + '&market=' + state.calMarket + '&page=1&size=50';
+  if (state.calMarket === 'STOCK' && state.calSymbol) url += '&symbol=' + encodeURIComponent(state.calSymbol);
+  try {
+    const r = await fetch(url);
+    const data = await r.json();
+    const list = (data.data && data.data.list) || [];
+    if (!list.length) { alert('当天没有提交预测，无法修改结果'); return; }
+    const box = $('#editResultList');
+    box.innerHTML = list.map((p) => {
+      const cur = p.actual_change != null ? (p.actual_change * 100).toFixed(2) : '';
+      const statusText = p.status === 'VERIFIED' ? (p.is_hit ? '命中' : '未中') :
+        (p.status === 'ERROR' ? '异常' : '待校验');
+      const dirText = p.direction === 'UP' ? '看涨' : '看跌';
+      return `<div class="edit-row" data-id="${p.id}" data-orig="${cur}">
+        <div class="er-head"><b>${escapeHtml(p.symbol_name || p.symbol)}</b> · ${dirText} · 当前：${statusText}</div>
+        <div class="er-body">
+          <label>实际涨跌幅(%)</label>
+          <input type="number" step="0.01" class="er-change" value="${cur}" />
+          <span class="er-computed"></span>
+          <button type="button" class="er-reset">恢复待校验</button>
+        </div>
+      </div>`;
+    }).join('');
+    $('#editResultDate').textContent = '目标交易日：' + date;
+    $$('#editResultList .edit-row').forEach((row) => {
+      const input = row.querySelector('.er-change');
+      const comp = row.querySelector('.er-computed');
+      const orig = row.dataset.orig;
+      const p = list.find((x) => String(x.id) === row.dataset.id);
+      const updateComp = () => {
+        const v = parseFloat(input.value);
+        delete row.dataset.reset;
+        if (isNaN(v)) { comp.textContent = ''; comp.className = 'er-computed'; row.classList.remove('dirty'); return; }
+        const hit = (v > 1e-9 && p.direction === 'UP') || (v < -1e-9 && p.direction === 'DOWN');
+        comp.textContent = '→ ' + (hit ? '命中' : '未中');
+        comp.className = 'er-computed ' + (hit ? 'hit' : 'miss');
+        row.classList.toggle('dirty', String(v) !== orig);
+      };
+      input.oninput = updateComp;
+      row.querySelector('.er-reset').onclick = () => {
+        input.value = ''; comp.textContent = ''; comp.className = 'er-computed';
+        row.classList.add('dirty'); row.dataset.reset = '1';
+      };
+      updateComp();
+    });
+    const msg = $('#editResultMsg'); msg.textContent = ''; msg.className = 'msg';
+    $('#editResultModal').classList.remove('hidden');
+  } catch (e) {
+    alert('加载失败');
+  }
+}
+
+async function saveEditResult() {
+  const msg = $('#editResultMsg');
+  const rows = $$('#editResultList .edit-row');
+  let ok = 0, fail = 0;
+  for (const row of rows) {
+    if (!row.classList.contains('dirty')) continue;
+    const id = row.dataset.id;
+    const input = row.querySelector('.er-change');
+    const reset = row.dataset.reset === '1';
+    const body = reset ? { actual_change: null } : { actual_change: parseFloat(input.value) };
+    if (!reset && isNaN(body.actual_change)) { fail++; continue; }
+    try {
+      const r = await fetch('api/predictions/' + id + '/result', { method: 'PATCH', headers: headers(), body: JSON.stringify(body) });
+      const j = await r.json();
+      if (j.code === 0) ok++; else fail++;
+    } catch (e) { fail++; }
+  }
+  if (ok) {
+    msg.textContent = '已保存 ' + ok + ' 条' + (fail ? '，' + fail + ' 条失败' : '');
+    msg.className = 'msg ok';
+  } else {
+    msg.textContent = '没有可保存的修改' + (fail ? '或保存失败' : '');
+    msg.className = 'msg err';
+  }
+  await Promise.all([refreshHome(), refreshStats()]);
+  setTimeout(() => $('#editResultModal').classList.add('hidden'), 700);
 }
 
 async function loadDayDetail(date) {
@@ -510,6 +612,11 @@ async function viewReason(id) {
 }
 $('#closeReason').onclick = () => { $('#reasonModal').classList.add('hidden'); $('#reasonFrame').srcdoc = ''; };
 $('#reasonModal').onclick = (e) => { if (e.target === $('#reasonModal')) { $('#reasonModal').classList.add('hidden'); $('#reasonFrame').srcdoc = ''; } };
+
+/* ---------- 手动修正预测结果（长按日历触发） ---------- */
+$('#closeEditResult').onclick = () => $('#editResultModal').classList.add('hidden');
+$('#editResultModal').onclick = (e) => { if (e.target === $('#editResultModal')) $('#editResultModal').classList.add('hidden'); };
+$('#editResultSave').onclick = saveEditResult;
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-reason]');
   if (btn) viewReason(btn.dataset.reason);

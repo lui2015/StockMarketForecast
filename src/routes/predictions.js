@@ -8,6 +8,7 @@ const db = require('../db');
 const config = require('../config');
 const { MARKETS, PRESET_INDICES, normalizeSymbol, expandMarketFilter } = require('../market');
 const { resolveUser } = require('../auth');
+const { manualVerify } = require('../verify');
 const router = express.Router();
 
 function nextTradingDay(from = new Date()) {
@@ -130,6 +131,29 @@ router.get('/:id', resolveUser, (req, res) => {
   const row = db.prepare('SELECT * FROM predictions WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
   if (!row) return res.status(404).json({ code: 404, msg: '未找到' });
   res.json({ code: 0, data: row });
+});
+
+// 手动修正预测结果（仅本人或管理员）：传入 actual_change 百分比小数，或传 null 恢复待校验
+router.patch('/:id/result', resolveUser, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const row = db.prepare('SELECT * FROM predictions WHERE id=?').get(id);
+  if (!row) return res.status(404).json({ code: 404, msg: '未找到预测' });
+  const isAdmin = req.headers['x-admin-pass'] === config.adminPass;
+  if (row.user_id !== req.user.id && !isAdmin) {
+    return res.status(403).json({ code: 403, msg: '无权修改该预测' });
+  }
+  const raw = (req.body && req.body.actual_change);
+  // 恢复为待校验
+  if (raw === null || raw === '' || raw === undefined) {
+    db.prepare(`UPDATE predictions SET status='PENDING', actual_change=NULL, is_hit=NULL, verified_at=NULL, updated_at=datetime('now') WHERE id=?`)
+      .run(id);
+    return res.json({ code: 0, data: db.prepare('SELECT * FROM predictions WHERE id=?').get(id) });
+  }
+  const actual = parseFloat(raw);
+  if (isNaN(actual)) return res.status(400).json({ code: 400, msg: '实际涨跌幅无效' });
+  const r = manualVerify(id, actual);
+  if (!r) return res.status(404).json({ code: 404, msg: '未找到预测' });
+  res.json({ code: 0, data: r });
 });
 
 module.exports = router;

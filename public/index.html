@@ -192,6 +192,19 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260722a"></script>
+  <!-- 手动修正预测结果弹层（长按日历触发） -->
+  <div id="editResultModal" class="modal hidden">
+    <div class="modal-card wide">
+      <div class="modal-head"><h3>手动修正预测结果</h3><button class="x" id="closeEditResult">✕</button></div>
+      <div class="meta" id="editResultDate"></div>
+      <div id="editResultList" class="edit-list"></div>
+      <div id="editResultMsg" class="msg"></div>
+      <div class="modal-foot">
+        <button class="primary" id="editResultSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=20260722c"></script>
 </body>
 </html>
