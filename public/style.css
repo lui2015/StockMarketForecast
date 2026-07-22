@@ -276,18 +276,38 @@ input[type="file"]::file-selector-button {
 
 /* 移动端适配 */
 @media (max-width: 640px) {
-  .metrics { grid-template-columns: 1fr; }
-  .container { padding: 14px 12px 30px; }
-  .metric-val { font-size: 34px; }
-  .idx-grid { grid-template-columns: 1fr; }
+  .container { padding: 12px 10px 28px; }
+
+  /* 顶栏：品牌+提交按钮在上行，Tab 第二行横向滚动避免换行 */
+  .app-bar { flex-wrap: wrap; gap: 10px; padding: 10px 12px; }
+  .brand { flex: 1 1 auto; font-size: 15px; }
+  .app-bar-right { flex: 0 0 auto; }
+  .top-tabs { order: 3; flex-basis: 100%; justify-content: flex-start; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .top-tabs button { flex: 0 0 auto; padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .app-bar-right .primary.sm { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+
+  /* 成功率指标：保持三列紧凑并列（不再单列） */
+  .metrics { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .metric-val { font-size: 26px; margin: 4px 0; }
+  .metric-label { font-size: 11px; }
+  .metric-sub { font-size: 11px; }
+
+  /* 今日三大盘：单列更清晰 */
+  .idx-grid { grid-template-columns: 1fr; gap: 10px; }
   .idx-result { font-size: 22px; }
-  .top-tabs { gap: 2px; }
-  .top-tabs button { padding: 8px 12px; font-size: 13px; }
-  .brand { font-size: 16px; }
-  .app-bar { gap: 10px; padding: 10px 12px; }
-  .cal-cell { min-height: 66px; padding: 6px; }
-  .cal-grid, .cal-week { gap: 5px; }
-  .cal-cell .dstat { font-size: 11px; }
-  .cal-cell .dface { font-size: 18px; }
-  .cal-cell .ddir { font-size: 10px; gap: 4px; }
+
+  /* 日历：筛选行横滑 + 格子内容紧凑 */
+  .cal-head { flex-wrap: wrap; gap: 8px; }
+  .cal-filter { flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding-bottom: 2px; }
+  .cal-filter .seg { flex-wrap: nowrap; flex: 0 0 auto; }
+  .cal-filter .seg button { flex: 0 0 auto; min-width: auto; padding: 8px 10px; font-size: 12px; }
+  .cal-filter .stock-sel { flex: 0 0 auto; min-width: 72px; }
+  .cal-grid, .cal-week { gap: 4px; }
+  .cal-cell { min-height: 58px; padding: 5px; }
+  .cal-cell .dnum { font-size: 11px; }
+  .cal-cell .dface { font-size: 15px; }
+  .cal-cell .ddir { font-size: 9px; gap: 3px; }
+  .cal-cell .dchg { font-size: 9px; }
+  .cal-cell .dstat { font-size: 10px; }
+  .cal-legend { gap: 8px 14px; }
 }
