@@ -101,13 +101,33 @@
       <section class="page hidden" id="page-history">
         <div class="card">
           <div class="filters">
-            <select id="fMarket"><option value="">全部市场</option></select>
+            <div class="seg" id="histMarketSeg">
+              <button data-m="" class="active">全部市场</button>
+              <button data-m="A_INDEX">A股大盘</button>
+              <button data-m="HK_INDEX">港股大盘</button>
+              <button data-m="US_INDEX">美股大盘</button>
+              <select id="histStockSel" class="stock-sel">
+                <option value="" disabled selected>个股</option>
+              </select>
+            </div>
             <select id="fStatus">
               <option value="">全部状态</option>
-              <option value="PENDING">待校验</option>
-              <option value="VERIFIED">已校验</option>
-              <option value="ERROR">异常</option>
+              <optgroup label="校验结果">
+                <option value="PENDING">待校验</option>
+                <option value="VERIFIED">已校验</option>
+                <option value="ERROR">异常</option>
+              </optgroup>
             </select>
+            <select id="fSource">
+              <option value="">全部方式</option>
+              <option value="web">手工</option>
+              <option value="api">API</option>
+            </select>
+            <div class="date-range">
+              <input type="date" id="fStart" class="date-input sm" title="起始交易日" />
+              <span class="meta">~</span>
+              <input type="date" id="fEnd" class="date-input sm" title="结束交易日" />
+            </div>
           </div>
           <div id="histList" class="hist-list"></div>
         </div>
@@ -210,6 +230,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260722e"></script>
+  <script src="app.js?v=20260722f"></script>
 </body>
 </html>

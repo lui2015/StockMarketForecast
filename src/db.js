@@ -65,6 +65,10 @@ const predCols = db.prepare('PRAGMA table_info(predictions)').all().map((c) => c
 if (!predCols.includes('reason_file')) {
   db.exec('ALTER TABLE predictions ADD COLUMN reason_file TEXT');
 }
+// 迁移：记录提交方式（手工 web / 接口 api）
+if (!predCols.includes('submit_source')) {
+  db.exec("ALTER TABLE predictions ADD COLUMN submit_source TEXT NOT NULL DEFAULT 'web'");
+}
 
 // 初始化种子账户：管理员 + 一个 AI 调用方
 function seed() {

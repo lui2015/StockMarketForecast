@@ -44,6 +44,8 @@ router.post('/', (req, res, next) => {
   const direction = body.direction;
   const caption = (body.reason || '').toString().slice(0, 500);
   const symbolNameInput = (body.symbol_name || '').toString().trim();
+  // 提交方式：Bearer API Key 视为接口提交，否则为网页手工提交
+  const submitSource = (req.headers['authorization'] && /^Bearer\s+/i.test(req.headers['authorization'])) ? 'api' : 'web';
 
   if (!MARKETS[market]) return res.status(400).json({ code: 400, msg: 'market 非法' });
   if (!['UP', 'DOWN'].includes(direction)) return res.status(400).json({ code: 400, msg: 'direction 必须为 UP 或 DOWN' });
@@ -66,12 +68,13 @@ router.post('/', (req, res, next) => {
   const symbolName = symbolNameInput || nameMap[sym] || sym;
 
   try {
-    db.prepare(`INSERT INTO predictions (user_id, market, symbol, symbol_name, target_date, direction, reason)
-      VALUES (?,?,?,?,?,?,?)
+    db.prepare(`INSERT INTO predictions (user_id, market, symbol, symbol_name, target_date, direction, reason, submit_source)
+      VALUES (?,?,?,?,?,?,?,?)
       ON CONFLICT(user_id, symbol, target_date) DO UPDATE SET
         direction=excluded.direction, reason=excluded.reason, status='PENDING',
-        actual_change=NULL, is_hit=NULL, verified_at=NULL, updated_at=datetime('now')`)
-      .run(req.user.id, market, sym, symbolName, tdate, direction, caption);
+        actual_change=NULL, is_hit=NULL, verified_at=NULL, updated_at=datetime('now'),
+        submit_source=excluded.submit_source`)
+      .run(req.user.id, market, sym, symbolName, tdate, direction, caption, submitSource);
 
     const row = db.prepare('SELECT * FROM predictions WHERE user_id=? AND symbol=? AND target_date=?')
       .get(req.user.id, sym, tdate);
@@ -113,7 +116,7 @@ router.get('/:id/reason', resolveUser, (req, res) => {
 
 // 列表/筛选
 router.get('/', resolveUser, (req, res) => {
-  const { market, status, symbol, target_date, page = 1, size = 20 } = req.query;
+  const { market, status, symbol, target_date, source, start_date, end_date, page = 1, size = 20 } = req.query;
   const where = ['user_id=?'];
   const params = [req.user.id];
   const markets = expandMarketFilter(market);
@@ -121,6 +124,9 @@ router.get('/', resolveUser, (req, res) => {
   if (symbol) { where.push('symbol=?'); params.push(symbol); }
   if (status) { where.push('status=?'); params.push(status); }
   if (target_date) { where.push('target_date=?'); params.push(target_date); }
+  if (source) { where.push('submit_source=?'); params.push(source); }
+  if (start_date) { where.push('target_date>=?'); params.push(start_date); }
+  if (end_date) { where.push('target_date<=?'); params.push(end_date); }
   const sql = `SELECT * FROM predictions WHERE ${where.join(' AND ')} ORDER BY target_date DESC, id DESC LIMIT ? OFFSET ?`;
   const list = db.prepare(sql).all(...params, parseInt(size, 10), (parseInt(page, 10) - 1) * parseInt(size, 10));
   const total = db.prepare(`SELECT COUNT(*) c FROM predictions WHERE ${where.join(' AND ')}`).get(...params).c;

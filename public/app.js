@@ -46,6 +46,7 @@ function loadEcharts() {
 async function init() {
   state.meta = (await api('api/admin/meta')).data;
   bindMarketSeg();
+  bindHistFilters();
   ensureStockSymbols();
   await refreshHome();
 }
@@ -506,19 +507,28 @@ function renderTrend(trend) {
 
 /* ---------- 历史 ---------- */
 async function refreshHistory() {
-  const sel = $('#fMarket');
-  if (!sel.options.length) {
-    Object.entries(state.meta.markets).forEach(([k, v]) => {
-      const o = document.createElement('option'); o.value = k; o.text = v; sel.appendChild(o);
-    });
-  }
-  const m = sel.value, s = $('#fStatus').value;
+  const m = $('#histMarketSeg .active').dataset.m;
+  const stockSym = $('#histStockSel').value;
+  const s = $('#fStatus').value;
+  const src = $('#fSource').value;
   const qs = new URLSearchParams({ page: 1, size: 50 });
   if (m) qs.set('market', m);
+  if (stockSym) qs.set('symbol', stockSym);
   if (s) qs.set('status', s);
+  if (src) qs.set('source', src);
+  const sd = $('#fStart').value, ed = $('#fEnd').value;
+  if (sd) qs.set('start_date', sd);
+  if (ed) qs.set('end_date', ed);
   const r = await api('api/predictions?' + qs.toString());
   if (r.code !== 0) return;
   $('#histList').innerHTML = r.data.list.length ? r.data.list.map(rowHtml).join('') : '<div class="meta">暂无记录</div>';
+}
+function fmtCreatedAt(iso) {
+  if (!iso) return '';
+  const d = new Date(iso.replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return iso;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 function rowHtml(p) {
   const dirTag = `<span class="tag ${p.direction}">${p.direction === 'UP' ? '看涨' : '看跌'}</span>`;
@@ -528,12 +538,14 @@ function rowHtml(p) {
   else stTag = '<span class="tag error">异常</span>';
   const act = p.status === 'VERIFIED' && p.actual_change != null
     ? `实际 ${(p.actual_change * 100).toFixed(2)}%` : (p.status === 'ERROR' ? '行情缺失' : '—');
+  const srcText = p.submit_source === 'api' ? 'API' : '手工';
   const reason = p.reason ? `<div class="meta">逻辑：${escapeHtml(p.reason)}</div>` : '';
   const logic = p.reason_file ? `<div class="meta"><button class="tag logic" data-reason="${p.id}">查看逻辑 HTML</button></div>` : '';
   return `<div class="row">
     <div>
       <div class="sym">${p.symbol_name || p.symbol} ${dirTag}</div>
       <div class="meta">目标日 ${p.target_date} · ${act}</div>
+      <div class="meta">提交 ${fmtCreatedAt(p.created_at)} · 方式 ${srcText}</div>
       ${reason}
       ${logic}
     </div>
@@ -542,8 +554,36 @@ function rowHtml(p) {
 }
 function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
-$('#fMarket').onchange = refreshHistory;
-$('#fStatus').onchange = refreshHistory;
+/* 历史筛选：市场段与上述首页一致，个股下拉复用预置 */
+function bindHistFilters() {
+  $$('#histMarketSeg button').forEach((b) => {
+    b.onclick = () => {
+      $$('#histMarketSeg button').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      const m = b.dataset.m;
+      if (m === 'A_STOCK' || m === 'HK_STOCK') { $('#histStockSel').style.display = ''; }
+      else {
+        $('#histStockSel').style.display = (m === '') ? '' : 'none';
+        $('#histStockSel').value = '';
+      }
+      if (m === 'A_STOCK' || m === 'HK_STOCK') renderHistStockSel(m);
+      refreshHistory();
+    };
+  });
+  const sel = $('#histStockSel');
+  sel.onchange = refreshHistory;
+  $('#fStatus').onchange = refreshHistory;
+  $('#fSource').onchange = refreshHistory;
+  $('#fStart').onchange = refreshHistory;
+  $('#fEnd').onchange = refreshHistory;
+}
+function renderHistStockSel(market) {
+  const sel = $('#histStockSel');
+  sel.innerHTML = '<option value="" disabled selected>个股</option>';
+  (state.meta.presets[market] || []).forEach((x) => {
+    const o = document.createElement('option'); o.value = x.symbol; o.text = x.name; sel.appendChild(o);
+  });
+}
 
 /* ---------- 开放平台 ---------- */
 let openLoaded = false;
