@@ -112,13 +112,14 @@ router.get('/:id/reason', resolveUser, (req, res) => {
 
 // 列表/筛选
 router.get('/', resolveUser, (req, res) => {
-  const { market, status, symbol, page = 1, size = 20 } = req.query;
+  const { market, status, symbol, target_date, page = 1, size = 20 } = req.query;
   const where = ['user_id=?'];
   const params = [req.user.id];
   const markets = expandMarketFilter(market);
   if (markets) { where.push(`market IN (${markets.map(() => '?').join(',')})`); params.push(...markets); }
   if (symbol) { where.push('symbol=?'); params.push(symbol); }
   if (status) { where.push('status=?'); params.push(status); }
+  if (target_date) { where.push('target_date=?'); params.push(target_date); }
   const sql = `SELECT * FROM predictions WHERE ${where.join(' AND ')} ORDER BY target_date DESC, id DESC LIMIT ? OFFSET ?`;
   const list = db.prepare(sql).all(...params, parseInt(size, 10), (parseInt(page, 10) - 1) * parseInt(size, 10));
   const total = db.prepare(`SELECT COUNT(*) c FROM predictions WHERE ${where.join(' AND ')}`).get(...params).c;

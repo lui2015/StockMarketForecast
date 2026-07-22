@@ -296,10 +296,14 @@ async function loadDayDetail(date) {
   try {
     const r = await fetch(url);
     const data = await r.json();
+    if (!data || data.code !== 0) { alert('加载失败'); return; }
     const list = (data.data && data.data.list) || [];
+    // 当天没有提交任何预测：仅提示，不跳转
+    if (!list.length) { alert('当天没有提交预测'); return; }
+    // 当天有预测但没上传 HTML 逻辑：提示，不跳转
     const hit = list.find((p) => p.reason_file);
     if (hit) window.location.href = 'api/predictions/' + hit.id + '/reason';
-    else alert('当日暂无上传的 HTML 逻辑');
+    else alert('当天未上传预测逻辑 HTML');
   } catch (e) {
     alert('加载失败');
   }
