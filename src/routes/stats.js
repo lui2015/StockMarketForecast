@@ -116,7 +116,9 @@ router.get('/calendar', resolveUser, (req, res) => {
       SUM(CASE WHEN status='VERIFIED' THEN 1 ELSE 0 END) verified,
       SUM(CASE WHEN status='PENDING' THEN 1 ELSE 0 END) pending,
       SUM(CASE WHEN status='ERROR' THEN 1 ELSE 0 END) err,
-      SUM(is_hit) hits
+      SUM(is_hit) hits,
+      SUM(CASE WHEN direction='UP' THEN 1 ELSE 0 END) up,
+      SUM(CASE WHEN direction='DOWN' THEN 1 ELSE 0 END) down
     FROM predictions WHERE ${scope.clause} AND target_date LIKE ?`;
   const params = [...scope.ids, like];
   if (markets) { sql += ` AND market IN (${markets.map(() => '?').join(',')})`; params.push(...markets); }
@@ -129,6 +131,7 @@ router.get('/calendar', resolveUser, (req, res) => {
     days[r.target_date] = {
       total: r.total, verified: r.verified, pending: r.pending, err: r.err,
       hits: r.hits || 0, accuracy: r.verified ? (r.hits || 0) / r.verified : null,
+      up: r.up || 0, down: r.down || 0,
     };
   });
   res.json({ code: 0, data: { month, today: new Date().toISOString().slice(0, 10), days } });

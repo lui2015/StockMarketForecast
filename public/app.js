@@ -343,7 +343,7 @@ function renderCalendar(data, today) {
   for (const d of workdays) {
     const ds = `${month}-${pad(d)}`;
     const info = data.days[ds];
-    let cls = 'cal-cell', stat = '', face = '', numCls = 'dnum';
+    let cls = 'cal-cell', stat = '', face = '', numCls = 'dnum', dir = '';
     if (ds === today) cls += ' today';
     if (info && info.total > 0) {
       if (info.verified > 0) {
@@ -352,8 +352,13 @@ function renderCalendar(data, today) {
       } else if (info.pending > 0 || info.err > 0) {
         cls += ' pending'; stat = '待校验'; face = '⏳';
       }
+      // 预测方向（看涨/看跌）
+      const parts = [];
+      if (info.up > 0) parts.push(`<span class="up">↑${info.up}</span>`);
+      if (info.down > 0) parts.push(`<span class="down">↓${info.down}</span>`);
+      dir = parts.join(' ');
     }
-    html += `<div class="${cls}" data-date="${ds}"><span class="${numCls}">${d}</span><span class="dface">${face}</span><span class="dstat">${stat}</span></div>`;
+    html += `<div class="${cls}" data-date="${ds}"><span class="${numCls}">${d}</span><span class="dface">${face}</span>${dir ? `<span class="ddir">${dir}</span>` : ''}<span class="dstat">${stat}</span></div>`;
   }
   grid.innerHTML = html;
   $$('#calGrid .cal-cell:not(.empty)').forEach((cell) => {

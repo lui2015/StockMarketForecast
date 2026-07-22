@@ -108,6 +108,9 @@ input[type=text], textarea, select, #nameInput {
 .cal-cell .dnum { font-size: 13px; color: var(--muted); }
 .cal-cell .dstat { font-size: 12px; font-weight: 700; align-self: flex-end; }
 .cal-cell .dface { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; }
+.cal-cell .ddir { font-size: 11px; font-weight: 700; align-self: stretch; display: flex; gap: 6px; justify-content: flex-end; line-height: 1.2; }
+.cal-cell .ddir .up { color: var(--up); }
+.cal-cell .ddir .down { color: var(--down); }
 .cal-cell.hit { background: rgba(31,191,117,.16); border-color: rgba(31,191,117,.4); }
 .cal-cell.hit .dstat { color: var(--down); }
 .cal-cell.miss { background: rgba(255,91,91,.14); border-color: rgba(255,91,91,.4); }
@@ -264,7 +267,9 @@ input[type="file"]::file-selector-button {
   .top-tabs button { padding: 8px 12px; font-size: 13px; }
   .brand { font-size: 16px; }
   .app-bar { gap: 10px; padding: 10px 12px; }
-  .cal-cell { min-height: 56px; padding: 6px; }
+  .cal-cell { min-height: 66px; padding: 6px; }
   .cal-grid, .cal-week { gap: 5px; }
   .cal-cell .dstat { font-size: 11px; }
+  .cal-cell .dface { font-size: 18px; }
+  .cal-cell .ddir { font-size: 10px; gap: 4px; }
 }
