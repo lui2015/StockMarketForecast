@@ -14,6 +14,30 @@ const MARKET_SYMBOL = {
 const TTL_MS = 30 * 60 * 1000; // 30 分钟缓存，避免重复打外部接口
 const _cache = new Map();
 
+// 美股大盘静态种子：真实历史日收盘（来源 FRED NASDAQCOM，2026-07-22 抓取）。
+// 本部署环境无法实时拉取美股完整日线（东财被墙 / 腾讯美股仅 1 天 / Yahoo 限流），
+// 故以真实历史数据兜底；一旦实时源可用，实时数据优先覆盖。
+// 含 2026-06-30 作为 7 月首日的“昨收”基准，使 7-01 也能算涨跌幅。
+const US_INDEX_SEED = {
+  '2026-07': {
+    '2026-06-30': 26213.72,
+    '2026-07-01': 26040.03,
+    '2026-07-02': 25832.67,
+    '2026-07-06': 26121.16,
+    '2026-07-07': 25818.69,
+    '2026-07-08': 25870.65,
+    '2026-07-09': 26206.89,
+    '2026-07-10': 26281.61,
+    '2026-07-13': 25873.18,
+    '2026-07-14': 26107.01,
+    '2026-07-15': 26269.23,
+    '2026-07-16': 25881.95,
+    '2026-07-17': 25520.24,
+    '2026-07-20': 25508.07,
+    '2026-07-21': 25837.21,
+  },
+};
+
 function pad2(n) { return String(n).padStart(2, '0'); }
 
 // 取某指数指定年月的日K线，返回 [{ date:'YYYY-MM-DD', close:Number }]
@@ -102,13 +126,26 @@ async function fetchEastmoneyKline(secid, year, month) {
   }
 }
 
-// 美股历史：优先东财（可拿到完整日线），不可达时回退腾讯日K线（通常仅最近一个交易日）
+// 美股历史：实时源（东财优先，回退腾讯）+ 静态种子兜底（实时拿不全时补全）
 async function fetchUSHistory(year, month) {
+  const key = `${year}-${pad2(month)}`;
+  // 1. 实时源
+  let bars = [];
   for (const secid of ['107.IXIC', '105.IXIC', '109.IXIC']) {
-    const bars = await fetchEastmoneyKline(secid, year, month);
-    if (bars.length >= 2) return bars;
+    const b = await fetchEastmoneyKline(secid, year, month);
+    if (b.length >= 2) { bars = b; break; }
   }
-  return fetchKline('usIXIC', year, month);
+  if (bars.length < 2) bars = (await fetchKline('usIXIC', year, month)).filter((x) => x.date);
+  // 2. 种子补充缺失交易日
+  const seed = US_INDEX_SEED[key];
+  if (seed) {
+    const liveDates = new Set(bars.map((b) => b.date));
+    for (const [d, close] of Object.entries(seed)) {
+      if (!liveDates.has(d)) bars.push({ date: d, close });
+    }
+  }
+  bars.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return bars;
 }
 
 async function getMonthHistory(year, month) {
