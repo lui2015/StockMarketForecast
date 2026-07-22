@@ -111,6 +111,7 @@ router.get('/calendar', resolveUser, (req, res) => {
   const month = (req.query.month || new Date().toISOString().slice(0, 7)); // YYYY-MM
   const like = month + '%';
   const markets = expandMarketFilter(req.query.market);
+  const scopeP2 = scope.clause.replace(/user_id/g, 'p2.user_id');
   let sql = `SELECT target_date,
       COUNT(*) total,
       SUM(CASE WHEN status='VERIFIED' THEN 1 ELSE 0 END) verified,
@@ -118,9 +119,10 @@ router.get('/calendar', resolveUser, (req, res) => {
       SUM(CASE WHEN status='ERROR' THEN 1 ELSE 0 END) err,
       SUM(is_hit) hits,
       SUM(CASE WHEN direction='UP' THEN 1 ELSE 0 END) up,
-      SUM(CASE WHEN direction='DOWN' THEN 1 ELSE 0 END) down
+      SUM(CASE WHEN direction='DOWN' THEN 1 ELSE 0 END) down,
+      (SELECT p2.direction FROM predictions p2 WHERE p2.target_date=predictions.target_date AND ${scopeP2} ORDER BY p2.id DESC LIMIT 1) latest_dir
     FROM predictions WHERE ${scope.clause} AND target_date LIKE ?`;
-  const params = [...scope.ids, like];
+  const params = [...scope.ids, ...scope.ids, like];
   if (markets) { sql += ` AND market IN (${markets.map(() => '?').join(',')})`; params.push(...markets); }
   const symbol = req.query.symbol;
   if (symbol) { sql += ' AND symbol=?'; params.push(symbol); }
@@ -131,7 +133,7 @@ router.get('/calendar', resolveUser, (req, res) => {
     days[r.target_date] = {
       total: r.total, verified: r.verified, pending: r.pending, err: r.err,
       hits: r.hits || 0, accuracy: r.verified ? (r.hits || 0) / r.verified : null,
-      up: r.up || 0, down: r.down || 0,
+      up: r.up || 0, down: r.down || 0, latestDir: r.latest_dir || null,
     };
   });
   res.json({ code: 0, data: { month, today: new Date().toISOString().slice(0, 10), days } });

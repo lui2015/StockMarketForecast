@@ -305,11 +305,10 @@ function renderCalendar(data, today) {
       } else if (info.pending > 0 || info.err > 0) {
         cls += ' pending'; stat = '待校验'; face = '⏳';
       }
-      // 预测方向（看涨红 / 看跌绿）
-      const parts = [];
-      if (info.up > 0) parts.push(`<span class="up">看涨${info.up > 1 ? info.up : ''}</span>`);
-      if (info.down > 0) parts.push(`<span class="down">看跌${info.down > 1 ? info.down : ''}</span>`);
-      dir = parts.join(' ');
+      // 预测方向：只展示当天最新一条预测的方向（看涨红 / 看跌绿），不再显示数量
+      const ld = info.latestDir || (info.up > 0 ? 'UP' : (info.down > 0 ? 'DOWN' : ''));
+      if (ld === 'UP') dir = '<span class="up">看涨</span>';
+      else if (ld === 'DOWN') dir = '<span class="down">看跌</span>';
     }
     html += `<div class="${cls}" data-date="${ds}"><span class="${numCls}">${d}</span><span class="dface">${face}</span>${dir ? `<span class="ddir">${dir}</span>` : ''}<span class="dstat">${stat}</span></div>`;
   }
