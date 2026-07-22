@@ -164,6 +164,59 @@ router.get('/:id', resolveUser, (req, res) => {
   res.json({ code: 0, data: row });
 });
 
+// 编辑预测信息（仅本人/同 scope 或管理员）：方向、理由、逻辑 HTML 文件
+router.patch('/:id', (req, res, next) => {
+  upload.single('reason_file')(req, res, (err) => {
+    if (err) return res.status(400).json({ code: 400, msg: 'HTML 文件上传失败：' + err.message });
+    next();
+  });
+}, resolveUser, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const row = db.prepare('SELECT * FROM predictions WHERE id=?').get(id);
+  if (!row) return res.status(404).json({ code: 404, msg: '未找到预测' });
+  const isAdmin = req.headers['x-admin-pass'] === config.adminPass;
+  if (!req.viewUserIds.includes(row.user_id) && !isAdmin) {
+    return res.status(403).json({ code: 403, msg: '无权修改该预测' });
+  }
+  const body = req.body || {};
+  const direction = body.direction;
+  if (direction && !['UP', 'DOWN'].includes(direction)) {
+    return res.status(400).json({ code: 400, msg: 'direction 必须为 UP 或 DOWN' });
+  }
+  const dir = (direction && ['UP', 'DOWN'].includes(direction)) ? direction : row.direction;
+  const reason = body.reason !== undefined ? (body.reason || '').toString().slice(0, 500) : row.reason;
+  const dirChanged = dir !== row.direction;
+
+  // 处理逻辑 HTML 文件：上传新文件则覆盖，否则可按要求删除
+  let reasonFile = row.reason_file;
+  const html = (req.file && req.file.buffer && req.file.buffer.length)
+    ? req.file.buffer
+    : (typeof body.reason_html === 'string' && body.reason_html.length ? Buffer.from(body.reason_html, 'utf8') : null);
+  if (html) {
+    if (html.length > config.reasonMaxBytes) return res.status(400).json({ code: 400, msg: 'HTML 文件超出大小限制' });
+    const safeName = row.id + '.html';
+    fs.writeFileSync(path.join(config.reasonsDir, safeName), html);
+    reasonFile = safeName;
+  } else if (parseInt(body.remove_reason_file, 10) === 1 && row.reason_file) {
+    const fp = path.join(config.reasonsDir, row.reason_file);
+    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    reasonFile = null;
+  }
+
+  try {
+    const sets = ['direction=?', 'reason=?', 'reason_file=?', "updated_at=datetime('now')"];
+    const params = [dir, reason, reasonFile];
+    // 方向改变则重置校验状态（旧的命中/未中已无意义）
+    if (dirChanged) {
+      sets.push("status='PENDING'", 'actual_change=NULL', 'is_hit=NULL', 'verified_at=NULL');
+    }
+    db.prepare(`UPDATE predictions SET ${sets.join(', ')} WHERE id=?`).run(...params, id);
+    res.json({ code: 0, data: db.prepare('SELECT * FROM predictions WHERE id=?').get(id) });
+  } catch (e) {
+    res.status(500).json({ code: 500, msg: '保存失败: ' + e.message });
+  }
+});
+
 // 手动修正预测结果（仅本人或管理员）
 //  - result: 'HIT' | 'MISS'   -> 直接判定命中/未中（VERIFIED）
 //  - result: 'PENDING'        -> 恢复为待校验

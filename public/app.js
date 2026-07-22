@@ -608,7 +608,10 @@ function histRowHtml(p) {
       <div class="sym">${escapeHtml(p.symbol_name || p.symbol)} ${dirTag}</div>
       <div class="meta">目标日 ${p.target_date} · ${mkt} · 方式 ${srcText} · 提交 ${fmtCreatedAt(p.created_at)}${act}${logic}</div>
     </div>
-    <div>${stTag}</div>
+    <div class="hist-actions">
+      ${stTag}
+      <button class="tag edit" data-edit="${p.id}">编辑</button>
+    </div>
   </div>`;
 }
 function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -761,9 +764,91 @@ $('#reasonModal').onclick = (e) => { if (e.target === $('#reasonModal')) { $('#r
 $('#closeEditResult').onclick = () => $('#editResultModal').classList.add('hidden');
 $('#editResultModal').onclick = (e) => { if (e.target === $('#editResultModal')) $('#editResultModal').classList.add('hidden'); };
 $('#editResultSave').onclick = saveEditResult;
+
+/* ---------- 编辑预测信息（历史列表触发） ---------- */
+let currentEditPredId = null;
+async function openEditPred(id) {
+  const r = await api('api/predictions/' + id);
+  if (r.code !== 0) { alert('加载失败'); return; }
+  const p = r.data;
+  currentEditPredId = p.id;
+  $('#editPredInfo').textContent = `${p.symbol_name || p.symbol} · 目标日 ${p.target_date}`;
+  $$('#editPredDir button').forEach((b) => b.classList.toggle('active', b.dataset.d === p.direction));
+  $('#editPredReason').value = p.reason || '';
+  $('#editPredRemoveFile').checked = false;
+  $('#editPredFile').value = '';
+  $('#editPredFileName').textContent = '';
+  $('#editPredFileHint').textContent = p.reason_file
+    ? '当前已上传逻辑 HTML（可重新上传覆盖，或勾选删除）'
+    : '当前未上传逻辑 HTML';
+  const msg = $('#editPredMsg'); msg.textContent = ''; msg.className = 'msg';
+  $('#editPredModal').classList.remove('hidden');
+}
+async function saveEditPred() {
+  if (!currentEditPredId) return;
+  const dirBtn = $('#editPredDir .active');
+  const dir = dirBtn ? dirBtn.dataset.d : null;
+  const reason = $('#editPredReason').value;
+  const removeFile = $('#editPredRemoveFile').checked;
+  const file = $('#editPredFile').files[0];
+  const msg = $('#editPredMsg');
+  let body, hdrs;
+  if (file) {
+    const fd = new FormData();
+    fd.append('direction', dir);
+    fd.append('reason', reason);
+    fd.append('reason_file', file);
+    if (removeFile) fd.append('remove_reason_file', '1');
+    body = fd; hdrs = {}; // 浏览器自动设置 multipart boundary
+  } else {
+    body = JSON.stringify({ direction: dir, reason, remove_reason_file: removeFile ? 1 : 0 });
+    hdrs = { 'Content-Type': 'application/json' };
+  }
+  // 复用鉴权头（X-User-Id）；FormData 时去掉 Content-Type 让浏览器自动加 boundary
+  const base = headers();
+  const useHeaders = file ? (() => { const { 'Content-Type': _omit, ...rest } = base; return rest; })() : base;
+  try {
+    const res = await fetch('api/predictions/' + currentEditPredId, {
+      method: 'PATCH',
+      headers: Object.assign(useHeaders, hdrs),
+      body,
+    });
+    const j = await res.json();
+    if (j.code === 0) {
+      msg.textContent = '已保存'; msg.className = 'msg ok';
+      await refreshHistory();
+      setTimeout(() => $('#editPredModal').classList.add('hidden'), 600);
+    } else {
+      msg.textContent = j.msg || '保存失败'; msg.className = 'msg err';
+    }
+  } catch (e) {
+    msg.textContent = '请求失败'; msg.className = 'msg err';
+  }
+}
+const editDrop = $('#editPredDrop');
+const editFileInput = $('#editPredFile');
+function setEditPredFile(file) {
+  if (!file) return;
+  $('#editPredFile').files = (() => { try { const dt = new DataTransfer(); dt.items.add(file); return dt.files; } catch (_) { return $('#editPredFile').files; } })();
+  $('#editPredFileName').textContent = file.name;
+  $('#editPredRemoveFile').checked = false;
+}
+editDrop.onclick = (e) => { if (e.target === editDrop || e.target.closest('.dz-inner')) editFileInput.click(); };
+editFileInput.onchange = () => setEditPredFile(editFileInput.files[0]);
+['dragenter', 'dragover'].forEach((ev) => editDrop.addEventListener(ev, (e) => { e.preventDefault(); editDrop.classList.add('drag'); }));
+['dragleave', 'drop'].forEach((ev) => editDrop.addEventListener(ev, (e) => { e.preventDefault(); editDrop.classList.remove('drag'); }));
+editDrop.addEventListener('drop', (e) => {
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) setEditPredFile(f);
+});
+$('#closeEditPred').onclick = () => $('#editPredModal').classList.add('hidden');
+$('#editPredModal').onclick = (e) => { if (e.target === $('#editPredModal')) $('#editPredModal').classList.add('hidden'); };
+$('#editPredSave').onclick = saveEditPred;
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-reason]');
   if (btn) viewReason(btn.dataset.reason);
+  const eb = e.target.closest('[data-edit]');
+  if (eb) openEditPred(parseInt(eb.dataset.edit, 10));
 });
 
 /* ---------- Tab 切换 ---------- */

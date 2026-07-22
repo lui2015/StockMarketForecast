@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>股市预测 · 涨跌预测系统</title>
-  <link rel="stylesheet" href="style.css?v=20260722b" />
+  <link rel="stylesheet" href="style.css?v=20260722c" />
 </head>
 <body>
   <header class="app-bar">
@@ -253,6 +253,42 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260722b"></script>
+  <!-- 编辑预测信息弹层（历史列表触发） -->
+  <div id="editPredModal" class="modal hidden">
+    <div class="modal-card wide">
+      <div class="modal-head"><h3>编辑预测</h3><button class="x" id="closeEditPred">✕</button></div>
+      <div class="meta" id="editPredInfo"></div>
+      <div class="field">
+        <label>预测方向</label>
+        <div class="seg dir" id="editPredDir">
+          <button type="button" data-d="UP" class="up">看涨 ↑</button>
+          <button type="button" data-d="DOWN" class="down">看跌 ↓</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>一句话说明</label>
+        <input type="text" id="editPredReason" placeholder="一句话说明（可选）" />
+      </div>
+      <div class="field">
+        <label>预测逻辑 HTML（重新上传覆盖，或删除）</label>
+        <div id="editPredDrop" class="dropzone">
+          <input type="file" id="editPredFile" accept=".html,.htm,text/html" hidden />
+          <div class="dz-inner">
+            <div class="dz-icon">⬆</div>
+            <div class="dz-text">将 HTML 文件拖到此处，或 <span class="dz-link">点击选择</span></div>
+            <div class="dz-name" id="editPredFileName"></div>
+          </div>
+        </div>
+        <label class="chk"><input type="checkbox" id="editPredRemoveFile" /> 删除已上传的逻辑 HTML</label>
+        <div class="meta" id="editPredFileHint"></div>
+      </div>
+      <div id="editPredMsg" class="msg"></div>
+      <div class="modal-foot">
+        <button class="primary" id="editPredSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=20260722c"></script>
 </body>
 </html>
