@@ -126,7 +126,7 @@ router.get('/:id/reason', resolveUser, (req, res) => {
   res.send(fs.readFileSync(fp));
 });
 
-// 列表/筛选
+// 列表/筛选（同一 symbol+target_date 只保留最新一条，避免重复提交导致多条）
 router.get('/', resolveUser, (req, res) => {
   const { market, status, symbol, target_date, source, start_date, end_date, page = 1, size = 20 } = req.query;
   let ids = req.viewUserIds;
@@ -142,9 +142,17 @@ router.get('/', resolveUser, (req, res) => {
   if (source) { where.push('submit_source=?'); params.push(source); }
   if (start_date) { where.push('target_date>=?'); params.push(start_date); }
   if (end_date) { where.push('target_date<=?'); params.push(end_date); }
-  const sql = `SELECT * FROM predictions WHERE ${where.join(' AND ')} ORDER BY target_date DESC, id DESC LIMIT ? OFFSET ?`;
+  // 去重：ROW_NUMBER() 按每个 symbol+target_date 取 id DESC 最新一条
+  const sql = `SELECT * FROM (
+    SELECT *, ROW_NUMBER() OVER(PARTITION BY symbol, target_date ORDER BY id DESC) AS _rn
+    FROM predictions WHERE ${where.join(' AND ')}) t
+    WHERE _rn=1 ORDER BY target_date DESC, id DESC LIMIT ? OFFSET ?`;
   const list = db.prepare(sql).all(...params, parseInt(size, 10), (parseInt(page, 10) - 1) * parseInt(size, 10));
-  const total = db.prepare(`SELECT COUNT(*) c FROM predictions WHERE ${where.join(' AND ')}`).get(...params).c;
+  // 总数也按去重后计算
+  const totalSql = `SELECT COUNT(*) c FROM (
+    SELECT 1 FROM predictions WHERE ${where.join(' AND ')}
+    GROUP BY symbol, target_date)`;
+  const total = db.prepare(totalSql).get(...params).c;
   res.json({ code: 0, data: { list, total, page: parseInt(page, 10), size: parseInt(size, 10) } });
 });
 

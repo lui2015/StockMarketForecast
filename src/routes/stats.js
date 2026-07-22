@@ -12,15 +12,19 @@ function userIn(ids) {
   return { clause: `user_id IN (${ph})`, ids };
 }
 
-// 今日预测结果（大盘三类）
+// 今日预测结果（大盘三类，同一 symbol 只保留最新一条）
 const INDEX_MARKETS = ['A_INDEX', 'HK_INDEX', 'US_INDEX'];
 router.get('/today', resolveUser, (req, res) => {
   const date = (req.query.date || new Date().toISOString().slice(0, 10));
   const scope = userIn(req.viewUserIds);
   const out = {};
   INDEX_MARKETS.forEach((m) => {
+    // ROW_NUMBER 去重：每个 symbol 只取 id DESC 最新一条
     const rows = db.prepare(
-      `SELECT * FROM predictions WHERE ${scope.clause} AND market=? AND target_date=? ORDER BY id DESC`
+      `SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY id DESC) AS _rn
+        FROM predictions WHERE ${scope.clause} AND market=? AND target_date=?
+      ) t WHERE _rn=1`
     ).all(...scope.ids, m, date);
     out[m] = rows;
   });

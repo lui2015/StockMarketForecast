@@ -246,7 +246,8 @@ async function renderToday(today) {
   const markets = r.data.markets || {};
   const grid = $('#idxGrid');
   grid.innerHTML = order.map((m) => {
-    const rows = markets[m] || [];
+    // 同一 symbol 只保留最新一条（后端已按 id DESC 排序，前端去重防御）
+    const rows = (markets[m] || []).filter((x, i, arr) => arr.findIndex((y) => y.symbol === x.symbol) === i);
     const label = (state.meta.markets && state.meta.markets[m]) || m;
     let status = 'none', resultText = '未提交', dirText = '今天还没有提交预测';
     if (rows.length) {
@@ -372,8 +373,10 @@ async function openEditResult(date) {
     const data = await r.json();
     const list = (data.data && data.data.list) || [];
     if (!list.length) { alert('当天没有提交预测，无法修改结果'); return; }
+    // 同一 symbol 只保留最新一条（后端已去重，前端防御）
+    const deduped = list.filter((x, i, arr) => arr.findIndex((y) => y.symbol === x.symbol) === i);
     const box = $('#editResultList');
-    box.innerHTML = list.map((p) => {
+    box.innerHTML = deduped.map((p) => {
       const dirText = p.direction === 'UP' ? '看涨' : '看跌';
       let statusText, orig;
       if (p.status === 'VERIFIED') { statusText = p.is_hit ? '命中' : '未中'; orig = p.is_hit ? 'HIT' : 'MISS'; }
