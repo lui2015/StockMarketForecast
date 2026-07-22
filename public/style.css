@@ -226,6 +226,7 @@ input[type="file"]::file-selector-button {
 .er-seg button[data-v="HIT"].active { background: var(--down); border-color: var(--down); }
 .er-seg button[data-v="MISS"].active { background: var(--up); border-color: var(--up); }
 .er-seg button[data-v="PENDING"].active { background: var(--accent); border-color: var(--accent); }
+.date-input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #2c3759; background: #0f1526; color: var(--text); font-size: 14px; }
 .modal-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
 
 /* 移动端适配 */

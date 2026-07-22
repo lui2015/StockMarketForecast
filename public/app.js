@@ -100,6 +100,14 @@ function renderSymbolBox() {
 }
 
 /* ---------- 提交 ---------- */
+// 下一交易日（仅跳过周末，与后端一致）：用于日期选择框默认值
+function nextTradingDay(from = new Date()) {
+  const d = new Date(from);
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function openSubmit() {
   $('#submitModal').classList.remove('hidden');
   $('#submitMsg').textContent = ''; $('#submitMsg').className = 'msg';
@@ -108,6 +116,12 @@ function openSubmit() {
   $('#reasonFile').value = '';
   $('#reasonFileName').textContent = '';
   const nm = $('#symNameInput'); if (nm) nm.value = '';
+  const td = $('#targetDate');
+  if (td) {
+    const today = new Date().toISOString().slice(0, 10);
+    td.min = today;                 // 不允许选过去的日期
+    td.value = nextTradingDay();    // 默认下一交易日
+  }
   if (!state.symbol) renderSymbolBox();
 }
 $('#openSubmit').onclick = openSubmit;
@@ -154,6 +168,8 @@ $('#submitBtn').onclick = async () => {
   fd.append('symbol', sym);
   if (symName) fd.append('symbol_name', symName);
   fd.append('direction', state.direction);
+  const td = $('#targetDate').value.trim();
+  if (td) fd.append('target_date', td);
   fd.append('reason', $('#reasonCaption').value.trim());
   const file = state.reasonFile || $('#reasonFile').files[0];
   if (file) fd.append('reason_file', file);
