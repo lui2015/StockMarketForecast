@@ -9,9 +9,10 @@ services:
       - ./data:/app/data
     environment:
       - PORT=3000
-      - QUOTE_MODE=mock          # 生产可改为 live（调用东方财富公开接口）
-      - VERIFY_HOUR=16
-      - VERIFY_MINUTE=30
+      - TZ=Asia/Shanghai         # 容器时区，保证 17:00 校验按北京时间触发
+      - QUOTE_MODE=live          # 调用东方财富公开接口拉取真实涨跌幅
+      - VERIFY_HOUR=17           # 每日 17:00（A股/港股收盘后）自动校验
+      - VERIFY_MINUTE=0
       - ADMIN_PASS=admin123
       - SEED_AI_API_KEY=sk-ai-demo-0001
     restart: unless-stopped

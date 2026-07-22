@@ -73,7 +73,49 @@ function toSecid(symbol) {
   return null;
 }
 
-// 确定性伪随机（mock 模式用），让测试可复现
+// 内部 symbol -> 腾讯行情(qt.gtimg.cn)代码
+// A股: sh600519/sz000001 直接可用；港股个股: hk00700 -> hk00700
+// 港股指数: r_hkHSI -> hkHSI；美股: usdji -> usDJI（腾讯美股代码大写并加 us 前缀）
+function toTencentCode(symbol) {
+  if (!symbol) return null;
+  const s = String(symbol);
+  if (/^(sh|sz)\d{6}$/.test(s)) return s;              // A股大盘/个股
+  if (/^hk\d{4,5}$/.test(s)) return s;                 // 港股个股
+  if (/^r_hk/i.test(s)) return 'hk' + s.slice(4);      // 港股指数 r_hkHSI -> hkHSI
+  if (/^us/i.test(s)) return 'us' + s.slice(2).toUpperCase(); // 美股 usdji -> usDJI
+  return null;
+}
+
+// 调用腾讯行情接口，解析涨跌幅。返回 { changePct, close, prevClose } 或 null
+// 数据格式：v_xxx="字段0~名称1~代码2~现价3~昨收4~...~涨跌额31~涨跌幅%32~..."
+async function fetchTencent(symbol) {
+  const code = toTencentCode(symbol);
+  if (!code) return null;
+  const url = `https://qt.gtimg.cn/q=${code}`;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    const text = buf.toString('binary'); // 数字字段为 ASCII，中文名乱码不影响解析
+    const m = text.match(/="([^"]*)"/);
+    if (!m) return null;
+    const f = m[1].split('~');
+    if (f.length < 33) return null;
+    const price = parseFloat(f[3]);
+    const prevClose = parseFloat(f[4]);
+    let changePct = f[32] !== '' && f[32] != null ? parseFloat(f[32]) / 100 : null;
+    if ((changePct == null || Number.isNaN(changePct)) && prevClose) {
+      changePct = (price - prevClose) / prevClose;
+    }
+    if (changePct == null || Number.isNaN(changePct)) return null;
+    return { changePct, close: Number.isNaN(price) ? null : price, prevClose: Number.isNaN(prevClose) ? null : prevClose, source: 'tencent' };
+  } catch (e) {
+    return null;
+  }
+}
 function mockChangePct(symbol, dateStr) {
   let h = 0;
   const str = symbol + '|' + dateStr;
@@ -136,6 +178,9 @@ async function getQuote(symbol, dateStr) {
   if (config.quoteMode === 'mock') {
     return { changePct: mockChangePct(symbol, dateStr), close: 100, prevClose: 100, mock: true };
   }
+  // live 模式：优先腾讯行情（云服务器可达），失败回退东方财富
+  const q = await fetchTencent(symbol);
+  if (q && q.changePct != null) return q;
   return fetchLive(symbol);
 }
 

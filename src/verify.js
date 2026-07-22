@@ -24,15 +24,24 @@ async function verifyOne(row) {
 
   db.prepare(`INSERT OR REPLACE INTO quotes (symbol, trade_date, close_price, prev_close, change_pct, source)
     VALUES (?,?,?,?,?,?)`).run(
-    row.symbol, row.target_date, q.close || null, q.prevClose || null, actual, q.mock ? 'mock' : 'eastmoney');
+    row.symbol, row.target_date, q.close || null, q.prevClose || null, actual, q.mock ? 'mock' : (q.source || 'eastmoney'));
   return { id: row.id, status: 'VERIFIED', actual_change: actual, is_hit: isHit };
 }
 
-// 校验所有待处理且目标日 <= 今天的预测
+// 校验所有待处理且「当天已收盘」的预测：
+// - target_date < today：历史目标日，所有市场均已收盘，正常校验；
+// - target_date = today：仅 A股/港股当天已收盘（北京时间 17:00 校验时），
+//   美股当天尚未收盘（要到次日凌晨），排除以免用隔夜/未收盘数据误判。
 async function runVerify(dateStr) {
   const today = dateStr || new Date().toISOString().slice(0, 10);
-  const rows = db.prepare("SELECT * FROM predictions WHERE status='PENDING' AND target_date <= ?")
-    .all(today);
+  const rows = db.prepare(
+    `SELECT * FROM predictions
+     WHERE status='PENDING'
+       AND (
+         target_date < ?
+         OR (target_date = ? AND market NOT LIKE 'US%')
+       )`
+  ).all(today, today);
   const results = [];
   for (const r of rows) {
     try {

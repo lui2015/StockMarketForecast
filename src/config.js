@@ -14,9 +14,9 @@ const config = {
   reasonMaxBytes: parseInt(process.env.REASON_MAX_BYTES || String(2 * 1024 * 1024), 10),
   // 行情模式：mock=本地可离线测试（按标的+日期确定性生成）；live=调用东方财富公开接口
   quoteMode: process.env.QUOTE_MODE || 'mock',
-  // 每日自动校验触发时间（24h），默认 16:30（A股收盘后）
-  verifyHour: parseInt(process.env.VERIFY_HOUR || '16', 10),
-  verifyMinute: parseInt(process.env.VERIFY_MINUTE || '30', 10),
+  // 每日自动校验触发时间（24h），默认 17:00（A股/港股收盘后）
+  verifyHour: parseInt(process.env.VERIFY_HOUR || '17', 10),
+  verifyMinute: parseInt(process.env.VERIFY_MINUTE || '0', 10),
   // 提交截止时间（目标交易日该时间后不允许提交），默认 09:00
   submitDeadlineHour: parseInt(process.env.SUBMIT_DEADLINE_HOUR || '9', 10),
   submitDeadlineMinute: parseInt(process.env.SUBMIT_DEADLINE_MINUTE || '0', 10),
