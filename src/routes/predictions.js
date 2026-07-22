@@ -133,7 +133,10 @@ router.get('/:id', resolveUser, (req, res) => {
   res.json({ code: 0, data: row });
 });
 
-// 手动修正预测结果（仅本人或管理员）：传入 actual_change 百分比小数，或传 null 恢复待校验
+// 手动修正预测结果（仅本人或管理员）
+//  - result: 'HIT' | 'MISS'   -> 直接判定命中/未中（VERIFIED）
+//  - result: 'PENDING'        -> 恢复为待校验
+//  - actual_change(兼容)       -> 按涨跌幅规则自动判定
 router.patch('/:id/result', resolveUser, (req, res) => {
   const id = parseInt(req.params.id, 10);
   const row = db.prepare('SELECT * FROM predictions WHERE id=?').get(id);
@@ -142,18 +145,29 @@ router.patch('/:id/result', resolveUser, (req, res) => {
   if (row.user_id !== req.user.id && !isAdmin) {
     return res.status(403).json({ code: 403, msg: '无权修改该预测' });
   }
-  const raw = (req.body && req.body.actual_change);
+  const body = req.body || {};
+  // 直接设置命中 / 未中
+  if (body.result === 'HIT' || body.result === 'MISS') {
+    const hit = body.result === 'HIT' ? 1 : 0;
+    db.prepare(`UPDATE predictions SET status='VERIFIED', is_hit=?, verified_at=datetime('now'), updated_at=datetime('now') WHERE id=?`)
+      .run(hit, id);
+    return res.json({ code: 0, data: db.prepare('SELECT * FROM predictions WHERE id=?').get(id) });
+  }
   // 恢复为待校验
-  if (raw === null || raw === '' || raw === undefined) {
+  if (body.result === 'PENDING' || body.reset) {
     db.prepare(`UPDATE predictions SET status='PENDING', actual_change=NULL, is_hit=NULL, verified_at=NULL, updated_at=datetime('now') WHERE id=?`)
       .run(id);
     return res.json({ code: 0, data: db.prepare('SELECT * FROM predictions WHERE id=?').get(id) });
   }
-  const actual = parseFloat(raw);
-  if (isNaN(actual)) return res.status(400).json({ code: 400, msg: '实际涨跌幅无效' });
-  const r = manualVerify(id, actual);
-  if (!r) return res.status(404).json({ code: 404, msg: '未找到预测' });
-  res.json({ code: 0, data: r });
+  // 兼容：传实际涨跌幅则按规则自动判定
+  if (body.actual_change !== undefined && body.actual_change !== null && body.actual_change !== '') {
+    const actual = parseFloat(body.actual_change);
+    if (isNaN(actual)) return res.status(400).json({ code: 400, msg: '实际涨跌幅无效' });
+    const r = manualVerify(id, actual);
+    if (!r) return res.status(404).json({ code: 404, msg: '未找到预测' });
+    return res.json({ code: 0, data: r });
+  }
+  return res.status(400).json({ code: 400, msg: '缺少有效的修改参数' });
 });
 
 module.exports = router;

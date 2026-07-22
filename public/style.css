@@ -221,12 +221,11 @@ input[type="file"]::file-selector-button {
 .er-head { font-size: 14px; margin-bottom: 10px; }
 .er-head b { color: var(--text); }
 .er-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.er-body label { font-size: 12px; color: var(--muted); }
-.er-change { width: 110px; padding: 8px 10px; border-radius: 8px; border: 1px solid #2c3759; background: #0f1526; color: var(--text); }
-.er-computed { font-size: 13px; font-weight: 600; }
-.er-computed.hit { color: var(--down); }
-.er-computed.miss { color: var(--up); }
-.er-reset { margin-left: auto; background: none; border: 1px solid #2c3759; color: var(--muted); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+.er-body .seg { flex: 1 1 auto; }
+.er-body .seg button { flex: 1 1 0; }
+.er-seg button[data-v="HIT"].active { background: var(--down); border-color: var(--down); }
+.er-seg button[data-v="MISS"].active { background: var(--up); border-color: var(--up); }
+.er-seg button[data-v="PENDING"].active { background: var(--accent); border-color: var(--accent); }
 .modal-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
 
 /* 移动端适配 */

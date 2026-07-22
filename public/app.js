@@ -310,7 +310,7 @@ function bindCalCell(cell) {
   };
 }
 
-// 长按日历某天：手动修正当天的预测结果
+// 长按日历某天：手动修正当天的命中/未中结果
 async function openEditResult(date) {
   let url = 'api/predictions?target_date=' + encodeURIComponent(date) + '&market=' + state.calMarket + '&page=1&size=50';
   if (state.calMarket === 'STOCK' && state.calSymbol) url += '&symbol=' + encodeURIComponent(state.calSymbol);
@@ -321,41 +321,38 @@ async function openEditResult(date) {
     if (!list.length) { alert('当天没有提交预测，无法修改结果'); return; }
     const box = $('#editResultList');
     box.innerHTML = list.map((p) => {
-      const cur = p.actual_change != null ? (p.actual_change * 100).toFixed(2) : '';
-      const statusText = p.status === 'VERIFIED' ? (p.is_hit ? '命中' : '未中') :
-        (p.status === 'ERROR' ? '异常' : '待校验');
       const dirText = p.direction === 'UP' ? '看涨' : '看跌';
-      return `<div class="edit-row" data-id="${p.id}" data-orig="${cur}">
+      let statusText, orig;
+      if (p.status === 'VERIFIED') { statusText = p.is_hit ? '命中' : '未中'; orig = p.is_hit ? 'HIT' : 'MISS'; }
+      else if (p.status === 'ERROR') { statusText = '异常'; orig = 'PENDING'; }
+      else { statusText = '待校验'; orig = 'PENDING'; }
+      return `<div class="edit-row" data-id="${p.id}" data-orig="${orig}">
         <div class="er-head"><b>${escapeHtml(p.symbol_name || p.symbol)}</b> · ${dirText} · 当前：${statusText}</div>
         <div class="er-body">
-          <label>实际涨跌幅(%)</label>
-          <input type="number" step="0.01" class="er-change" value="${cur}" />
-          <span class="er-computed"></span>
-          <button type="button" class="er-reset">恢复待校验</button>
+          <div class="seg er-seg">
+            <button type="button" data-v="HIT" class="${orig === 'HIT' ? 'active' : ''}">命中</button>
+            <button type="button" data-v="MISS" class="${orig === 'MISS' ? 'active' : ''}">未中</button>
+            <button type="button" data-v="PENDING" class="${orig === 'PENDING' ? 'active' : ''}">待校验</button>
+          </div>
         </div>
       </div>`;
     }).join('');
     $('#editResultDate').textContent = '目标交易日：' + date;
     $$('#editResultList .edit-row').forEach((row) => {
-      const input = row.querySelector('.er-change');
-      const comp = row.querySelector('.er-computed');
       const orig = row.dataset.orig;
-      const p = list.find((x) => String(x.id) === row.dataset.id);
-      const updateComp = () => {
-        const v = parseFloat(input.value);
-        delete row.dataset.reset;
-        if (isNaN(v)) { comp.textContent = ''; comp.className = 'er-computed'; row.classList.remove('dirty'); return; }
-        const hit = (v > 1e-9 && p.direction === 'UP') || (v < -1e-9 && p.direction === 'DOWN');
-        comp.textContent = '→ ' + (hit ? '命中' : '未中');
-        comp.className = 'er-computed ' + (hit ? 'hit' : 'miss');
-        row.classList.toggle('dirty', String(v) !== orig);
+      const seg = row.querySelector('.er-seg');
+      const sync = () => {
+        const sel = seg.querySelector('.active');
+        const v = sel ? sel.dataset.v : '';
+        row.classList.toggle('dirty', v !== orig);
       };
-      input.oninput = updateComp;
-      row.querySelector('.er-reset').onclick = () => {
-        input.value = ''; comp.textContent = ''; comp.className = 'er-computed';
-        row.classList.add('dirty'); row.dataset.reset = '1';
-      };
-      updateComp();
+      seg.querySelectorAll('button').forEach((btn) => {
+        btn.onclick = () => {
+          seg.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          sync();
+        };
+      });
     });
     const msg = $('#editResultMsg'); msg.textContent = ''; msg.className = 'msg';
     $('#editResultModal').classList.remove('hidden');
@@ -371,12 +368,11 @@ async function saveEditResult() {
   for (const row of rows) {
     if (!row.classList.contains('dirty')) continue;
     const id = row.dataset.id;
-    const input = row.querySelector('.er-change');
-    const reset = row.dataset.reset === '1';
-    const body = reset ? { actual_change: null } : { actual_change: parseFloat(input.value) };
-    if (!reset && isNaN(body.actual_change)) { fail++; continue; }
+    const sel = row.querySelector('.er-seg .active');
+    const result = sel ? sel.dataset.v : 'PENDING';
+    if (result === row.dataset.orig) continue;
     try {
-      const r = await fetch('api/predictions/' + id + '/result', { method: 'PATCH', headers: headers(), body: JSON.stringify(body) });
+      const r = await fetch('api/predictions/' + id + '/result', { method: 'PATCH', headers: headers(), body: JSON.stringify({ result }) });
       const j = await r.json();
       if (j.code === 0) ok++; else fail++;
     } catch (e) { fail++; }
