@@ -117,6 +117,9 @@ input[type=text], textarea, select, #nameInput {
 .cal-cell.miss .dstat { color: var(--up); }
 .cal-cell.pending { background: rgba(124,92,255,.12); border-color: rgba(124,92,255,.4); }
 .cal-cell.pending .dstat { color: #b9a8ff; }
+/* 大盘实际涨跌底色：涨=淡红，跌=淡绿（红涨绿跌）。放在命中/未中之后，使其共存时生效 */
+.cal-cell.mkt-up { background: #fdeaea; border-color: #f3c2c2; }
+.cal-cell.mkt-down { background: #e8f6ec; border-color: #bfe6c9; }
 
 /* 日历切换/筛选动效：整张网格淡入或左右滑入 */
 @keyframes calFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -132,6 +135,7 @@ input[type=text], textarea, select, #nameInput {
 .cal-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--muted); }
 .cal-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
 .dot.hit { background: var(--down); } .dot.miss { background: var(--up); } .dot.pending { background: #7c5cff; } .dot.none { background: #2c3759; }
+.dot.mktup { background: #f3a3a3; } .dot.mktdown { background: #9adcb0; }
 
 /* 开放平台 · 调用统计 */
 .usage-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 6px; }

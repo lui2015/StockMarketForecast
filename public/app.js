@@ -201,7 +201,15 @@ async function refreshHome() {
   let calUrl = 'api/stats/calendar?month=' + state.calMonth + '&market=' + state.calMarket;
   if (state.calMarket === 'STOCK' && state.calSymbol) calUrl += '&symbol=' + encodeURIComponent(state.calSymbol);
   const cal = await api(calUrl);
-  if (cal.code === 0) renderCalendar(cal.data, today);
+  // 拉取大盘实际涨跌（用于日历方块底色），仅指数市场需要
+  let marketHistory = {};
+  if (['A_INDEX', 'HK_INDEX', 'US_INDEX'].includes(state.calMarket)) {
+    try {
+      const mh = await api('api/market-history?month=' + state.calMonth);
+      if (mh && mh.code === 0) marketHistory = mh.data || {};
+    } catch (e) { /* 接口异常不影响日历渲染 */ }
+  }
+  if (cal.code === 0) renderCalendar(cal.data, today, marketHistory);
 
   await renderToday(today);
 
@@ -277,8 +285,9 @@ function toggleIdxDetail(market, rows) {
   idxOpen = market;
 }
 
-function renderCalendar(data, today) {
+function renderCalendar(data, today, marketHistory) {
   const month = data.month; // YYYY-MM
+  const mh = (marketHistory && marketHistory[state.calMarket]) || {};
   const [y, m] = month.split('-').map(Number);
   $('#calTitle').textContent = `${y}年${m}月`;
   const days = new Date(y, m, 0).getDate();
@@ -296,8 +305,11 @@ function renderCalendar(data, today) {
   for (const d of workdays) {
     const ds = `${month}-${pad(d)}`;
     const info = data.days[ds];
+    const md = mh[ds]; // 'up' | 'down' 大盘实际涨跌
     let cls = 'cal-cell', stat = '', face = '', numCls = 'dnum', dir = '';
     if (ds === today) cls += ' today';
+    if (md === 'up') cls += ' mkt-up';
+    else if (md === 'down') cls += ' mkt-down';
     if (info && info.total > 0) {
       if (info.verified > 0) {
         if (info.hits === info.verified) { cls += ' hit'; stat = '命中'; face = '😄'; }
