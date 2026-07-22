@@ -207,6 +207,53 @@ async function refreshHome() {
     $('#monthAcc').textContent = (c.data.monthAccuracy * 100).toFixed(1) + '%';
     $('#monthSub').textContent = `共 ${c.data.monthTotal} 次 · 命中 ${c.data.monthHits} 次`;
   }
+
+  await refreshUpcoming(today);
+}
+
+// 即将公布的预测：今天及以后所有已提交的预测（跨任意未来月份），确保无论未来哪天都能看到
+async function refreshUpcoming(today) {
+  const card = $('#upcomingCard');
+  if (!card) return;
+  today = today || new Date().toISOString().slice(0, 10);
+  const r = await api('api/predictions?start_date=' + today + '&page=1&size=200');
+  if (r.code !== 0) { card.style.display = 'none'; return; }
+  // 目标日升序（越近越靠前），同日按 id 倒序
+  const list = (r.data.list || []).slice().sort((a, b) => {
+    if (a.target_date !== b.target_date) return a.target_date < b.target_date ? -1 : 1;
+    return b.id - a.id;
+  });
+  if (!list.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  $('#upcomingCount').textContent = '共 ' + list.length + ' 条';
+  $('#upcomingList').innerHTML = list.map(upcomingRowHtml).join('');
+  $$('#upcomingList .row[data-month]').forEach((row) => {
+    row.onclick = (e) => {
+      if (e.target.closest('[data-reason]')) return; // 点「查看逻辑」不跳月份
+      const mth = row.dataset.month;
+      if (mth && mth !== state.calMonth) { state.calMonth = mth; refreshHome(); }
+      const cal = $('#calGrid');
+      if (cal) cal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+  });
+}
+
+function upcomingRowHtml(p) {
+  const dirTag = `<span class="tag ${p.direction}">${p.direction === 'UP' ? '看涨' : '看跌'}</span>`;
+  let stTag = '';
+  if (p.status === 'VERIFIED') stTag = p.is_hit ? '<span class="tag hit">命中</span>' : '<span class="tag miss">未中</span>';
+  else if (p.status === 'PENDING') stTag = '<span class="tag pending">待校验</span>';
+  else stTag = '<span class="tag error">异常</span>';
+  const mkt = (state.meta.markets && state.meta.markets[p.market]) || p.market;
+  const srcText = p.submit_source === 'api' ? 'API' : '手工';
+  const logic = p.reason_file ? ` · <button class="tag logic" data-reason="${p.id}">逻辑 HTML</button>` : '';
+  return `<div class="row up-row" data-month="${p.target_date.slice(0, 7)}" data-date="${p.target_date}">
+    <div>
+      <div class="sym">${escapeHtml(p.symbol_name || p.symbol)} ${dirTag}</div>
+      <div class="meta">目标日 ${p.target_date} · ${mkt} · 方式 ${srcText}${logic}</div>
+    </div>
+    <div>${stTag}</div>
+  </div>`;
 }
 
 let stockSymbolsLoaded = false;
