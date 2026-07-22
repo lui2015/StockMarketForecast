@@ -586,8 +586,20 @@ function renderHistStockSel(market) {
 }
 
 /* ---------- 开放平台 ---------- */
+// 调用统计：每次进入开放平台页都刷新（不做缓存）
+async function refreshUsage() {
+  try {
+    const r = await api('api/open/usage');
+    if (r.code !== 0) return;
+    const fmt = (n) => (Number(n) || 0).toLocaleString('zh-CN');
+    if ($('#usageToday')) $('#usageToday').textContent = fmt(r.data.today);
+    if ($('#usageTotal')) $('#usageTotal').textContent = fmt(r.data.total);
+  } catch (e) { /* 忽略 */ }
+}
+
 let openLoaded = false;
 async function refreshOpen() {
+  refreshUsage();
   if (openLoaded) return;
   const r = await api('api/open/info');
   if (r.code !== 0) return;
@@ -666,6 +678,13 @@ $('#copyPrompt').onclick = () => {
     setTimeout(() => ($('#copyPrompt').textContent = old), 1200);
   }).catch(() => alert('复制失败'));
 };
+if ($('#refreshUsage')) {
+  $('#refreshUsage').onclick = () => {
+    const btn = $('#refreshUsage');
+    const old = btn.textContent; btn.textContent = '刷新中';
+    Promise.resolve(refreshUsage()).finally(() => { setTimeout(() => (btn.textContent = old), 600); });
+  };
+}
 
 /* ---------- 查看预测逻辑 HTML（沙箱渲染，防 XSS） ---------- */
 const REASON_CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob: *; font-src * data:; connect-src 'none'">`;

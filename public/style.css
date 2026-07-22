@@ -119,6 +119,12 @@ input[type=text], textarea, select, #nameInput {
 .cal-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
 .dot.hit { background: var(--down); } .dot.miss { background: var(--up); } .dot.pending { background: #7c5cff; } .dot.none { background: #2c3759; }
 
+/* 开放平台 · 调用统计 */
+.usage-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 6px; }
+.usage-item { background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 18px 14px; text-align: center; }
+.usage-num { font-size: 34px; font-weight: 800; line-height: 1.1; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.usage-label { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
 .streak { margin-top: 10px; font-size: 13px; color: var(--muted); }
 .by-m { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .by-m:last-child { border-bottom: 0; }

@@ -148,6 +148,24 @@
 
         <div class="card">
           <div class="modal-head" style="border:0;padding:0;margin-bottom:8px">
+            <h3 style="margin:0">调用统计</h3>
+            <button class="tag" id="refreshUsage">刷新</button>
+          </div>
+          <p class="meta">统计通过 API Key 的接口调用（提交与查询）。</p>
+          <div class="usage-grid">
+            <div class="usage-item">
+              <div class="usage-num" id="usageToday">--</div>
+              <div class="usage-label">今日调用次数</div>
+            </div>
+            <div class="usage-item">
+              <div class="usage-num" id="usageTotal">--</div>
+              <div class="usage-label">累计调用次数</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="modal-head" style="border:0;padding:0;margin-bottom:8px">
             <h3 style="margin:0">AI 调用提示词</h3>
             <button class="tag copy" id="copyPrompt">复制提示词</button>
           </div>
@@ -232,6 +250,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260723g"></script>
+  <script src="app.js?v=20260723h"></script>
 </body>
 </html>

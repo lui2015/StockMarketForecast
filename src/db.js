@@ -58,6 +58,11 @@ CREATE TABLE IF NOT EXISTS quotes (
 
 CREATE INDEX IF NOT EXISTS idx_predictions_status ON predictions(status);
 CREATE INDEX IF NOT EXISTS idx_predictions_user ON predictions(user_id);
+
+CREATE TABLE IF NOT EXISTS api_call_daily (
+  day TEXT PRIMARY KEY,                  -- 调用日期 YYYY-MM-DD（服务器本地时区）
+  count INTEGER NOT NULL DEFAULT 0       -- 当日通过 API Key 的调用次数
+);
 `);
 
 // 迁移：预测逻辑由文字升级为可上传的 HTML 文件

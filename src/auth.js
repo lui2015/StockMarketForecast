@@ -12,6 +12,15 @@ function rateLimited(apiKey, limit) {
   return arr.length > limit;
 }
 
+// 记录一次 API Key 调用（按本地时区当天累加），失败不影响主流程
+const bumpApiCallStmt = db.prepare(
+  "INSERT INTO api_call_daily(day, count) VALUES (date('now','localtime'), 1) " +
+  'ON CONFLICT(day) DO UPDATE SET count = count + 1'
+);
+function bumpApiCall() {
+  try { bumpApiCallStmt.run(); } catch (e) { /* 计数失败忽略 */ }
+}
+
 // 解析调用方：Bearer API Key（AI）/ X-User-Id（网页）/ 默认 web 账户
 function resolveUser(req, res, next) {
   const auth = req.headers['authorization'] || '';
@@ -23,6 +32,7 @@ function resolveUser(req, res, next) {
     if (rateLimited(key, acc.rate_limit || 60)) {
       return res.status(429).json({ code: 429, msg: '请求过于频繁，请稍后再试' });
     }
+    bumpApiCall();
     req.user = acc;
     return next();
   }

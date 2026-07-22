@@ -2,6 +2,7 @@
 
 const express = require('express');
 const config = require('../config');
+const db = require('../db');
 const { MARKETS, PRESET_INDICES } = require('../market');
 const router = express.Router();
 
@@ -104,6 +105,19 @@ router.get('/info', (req, res) => {
       limit: { direction: ['UP', 'DOWN'] },
     },
   });
+});
+
+// 开放平台调用统计：今日调用次数 + 累计调用次数
+router.get('/usage', (req, res) => {
+  let today = 0;
+  let total = 0;
+  try {
+    const t = db.prepare("SELECT count FROM api_call_daily WHERE day = date('now','localtime')").get();
+    today = (t && t.count) || 0;
+    const s = db.prepare('SELECT SUM(count) AS c FROM api_call_daily').get();
+    total = (s && s.c) || 0;
+  } catch (e) { /* 表不存在等异常时返回 0 */ }
+  res.json({ code: 0, data: { today, total } });
 });
 
 module.exports = router;
